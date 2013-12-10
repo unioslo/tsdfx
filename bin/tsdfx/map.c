@@ -24,16 +24,16 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <tsdfx.h>
+
+/*
+ * Read the map file
+ */
 
 int
-main(int argc, char *argv[])
+read_map(const char *mapfn)
 {
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+	(void)mapfn;
+	return (-1);
 }

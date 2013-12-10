@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2012 Dag-Erling Smørgrav
  * Copyright (c) 2013 Universitetet i Oslo
  * All rights reserved.
  *
@@ -24,16 +25,51 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <errno.h>
 #include <stdlib.h>
 
-int
-main(int argc, char *argv[])
-{
+#include <tsdfx/strutil.h>
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+#define MIN_STR_SIZE	32
+
+/*
+ * Add a character to a string, expanding the buffer if needed.
+ */
+
+int
+tsdfx_straddch(char **str, size_t *size, size_t *len, int ch)
+{
+	size_t tmpsize;
+	char *tmpstr;
+
+	if (*str == NULL) {
+		/* initial allocation */
+		tmpsize = MIN_STR_SIZE;
+		if ((tmpstr = malloc(tmpsize)) == NULL) {
+			errno = ENOMEM;
+			return (-1);
+		}
+		*str = tmpstr;
+		*size = tmpsize;
+		*len = 0;
+	} else if (ch != 0 && *len + 1 >= *size) {
+		/* additional space required */
+		tmpsize = *size * 2;
+		if ((tmpstr = realloc(*str, tmpsize)) == NULL) {
+			errno = ENOMEM;
+			return (-1);
+		}
+		*size = tmpsize;
+		*str = tmpstr;
+	}
+	if (ch != 0) {
+		(*str)[*len] = ch;
+		++*len;
+	}
+	(*str)[*len] = '\0';
+	return (0);
 }

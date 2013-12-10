@@ -24,16 +24,26 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef TSDFX_BITWISE_H_INCLUDED
+#define TSDFX_BITWISE_H_INCLUDED
 
-int
-main(int argc, char *argv[])
+#if 1
+static inline uint32_t
+tsdfx_rol(uint32_t i, int n)
 {
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+        return (i << n | i >> (32 - n));
 }
+
+static inline uint32_t
+tsdfx_ror(uint32_t i, int n)
+{
+
+        return (i << (32 - n) | i >> n);
+}
+#else
+#define tsdfx_rol(i, n) ((i) << (n) | (i) >> (32 - (n)))
+#define tsdfx_ror(i, n) ((i) << (32 - (n)) | (i) >> (n))
+#endif
+
+#endif

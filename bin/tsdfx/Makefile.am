@@ -1,4 +1,9 @@
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include
 sbin_PROGRAMS = tsdfx
-tsdfx_SOURCES = tsdfx.c
-tsdfx_LDADD = $(CRYPTO_LIBS)
+tsdfx_SOURCES =
+tsdfx_SOURCES += tsdfx.c
+tsdfx_SOURCES += map.c
+tsdfx_SOURCES += worker.c
+tsdfx_LDADD = $(CRYPTO_LIBS) $(top_builddir)/lib/libtsdfx/libtsdfx.la
+noinst_HEADERS = tsdfx.h
 dist_man8_MANS = tsdfx.8

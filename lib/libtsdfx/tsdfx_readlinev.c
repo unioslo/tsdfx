@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2012 Dag-Erling Smørgrav
  * Copyright (c) 2013 Universitetet i Oslo
  * All rights reserved.
  *
@@ -24,16 +25,70 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-int
-main(int argc, char *argv[])
-{
+#include <tsdfx/strutil.h>
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+#define MIN_WORDV_SIZE	32
+
+/*
+ * Read a line from a file and split it into words.
+ */
+
+char **
+tsdfx_readlinev(FILE *f, int *lineno, int *lenp)
+{
+	char *word, **wordv, **tmp;
+	size_t wordlen, wordvsize;
+	int ch, serrno, wordvlen;
+
+	wordvsize = MIN_WORDV_SIZE;
+	wordvlen = 0;
+	if ((wordv = malloc(wordvsize * sizeof *wordv)) == NULL) {
+		errno = ENOMEM;
+		return (NULL);
+	}
+	wordv[wordvlen] = NULL;
+	while ((word = tsdfx_readword(f, lineno, &wordlen)) != NULL) {
+		if ((unsigned int)wordvlen + 1 >= wordvsize) {
+			/* need to expand the array */
+			wordvsize *= 2;
+			tmp = realloc(wordv, wordvsize * sizeof *wordv);
+			if (tmp == NULL) {
+				errno = ENOMEM;
+				break;
+			}
+			wordv = tmp;
+		}
+		/* insert our word */
+		wordv[wordvlen++] = word;
+		wordv[wordvlen] = NULL;
+	}
+	if (errno != 0) {
+		/* I/O error or out of memory */
+		serrno = errno;
+		while (wordvlen--)
+			free(wordv[wordvlen]);
+		free(wordv);
+		errno = serrno;
+		return (NULL);
+	}
+	/* assert(!ferror(f)) */
+	ch = fgetc(f);
+	/* assert(ch == EOF || ch == '\n') */
+	if (ch == EOF && wordvlen == 0) {
+		free(wordv);
+		return (NULL);
+	}
+	if (ch == '\n' && lineno != NULL)
+		++*lineno;
+	if (lenp != NULL)
+		*lenp = wordvlen;
+	return (wordv);
 }

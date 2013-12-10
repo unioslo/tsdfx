@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2011-2012 Dag-Erling Smørgrav
  * Copyright (c) 2013 Universitetet i Oslo
  * All rights reserved.
  *
@@ -24,16 +25,31 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
 
-int
-main(int argc, char *argv[])
+#ifndef HAVE_STRLCPY
+
+#include <stddef.h>
+
+#include <tsdfx/strutil.h>
+
+/*
+ * Like strcpy(3), but always NUL-terminates; returns strlen(src)
+ */
+
+size_t
+tsdfx_strlcpy(char *dst, const char *src, size_t size)
 {
+	size_t len;
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+	for (len = 0; *src && size > 1; ++len, --size)
+		*dst++ = *src++;
+	*dst = '\0';
+	while (*src)
+		++len, ++src;
+	return (len);
 }
+
+#endif

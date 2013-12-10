@@ -24,16 +24,7 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef TSDFX_H_INCLUDED
+#define TSDFX_H_INCLUDED
 
-int
-main(int argc, char *argv[])
-{
-
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
-}
+#endif

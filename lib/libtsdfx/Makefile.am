@@ -1,0 +1,9 @@
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include
+lib_LTLIBRARIES = libtsdfx.la
+libtsdfx_la_SOURCES =
+libtsdfx_la_SOURCES += tsdfx_readlinev.c
+libtsdfx_la_SOURCES += tsdfx_readword.c
+libtsdfx_la_SOURCES += tsdfx_sha1.c
+libtsdfx_la_SOURCES += tsdfx_straddch.c
+libtsdfx_la_SOURCES += tsdfx_strlcat.c
+libtsdfx_la_SOURCES += tsdfx_strlcpy.c

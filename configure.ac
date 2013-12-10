@@ -15,21 +15,18 @@ AC_C_CONST
 AC_C_RESTRICT
 AC_C_VOLATILE
 
+# libtool
+LT_PREREQ([2.2.6])
+LT_INIT()
+
 # tools
 AC_PROG_INSTALL
 
 # headers
-AC_CHECK_HEADERS([openssl/sha.h])
+AC_CHECK_HEADERS([endian.h sys/endian.h])
 
 # functions
-
-# libraries
-saved_LIBS="${LIBS}"
-LIBS=""
-AC_CHECK_LIB([crypto], [SHA1_Init])
-CRYPTO_LIBS="${LIBS}"
-LIBS="${saved_LIBS}"
-AC_SUBST(CRYPTO_LIBS)
+AC_CHECK_FUNCS([strlcat strlcpy])
 
 # options
 AC_ARG_ENABLE([debug],
@@ -48,7 +45,10 @@ AC_ARG_ENABLE([werror],
 # output
 AC_CONFIG_FILES([
     Makefile
+    include/Makefile
     bin/Makefile
     bin/tsdfx/Makefile
+    lib/Makefile
+    lib/libtsdfx/Makefile
 ])
 AC_OUTPUT

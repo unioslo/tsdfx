@@ -1,12 +1,14 @@
 /*-
- * Copyright (c) 2013 Universitetet i Oslo
+ * Copyright (c) 2012 Universitetet i Oslo
+ * Copyright (c) 2012 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
@@ -24,16 +26,44 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef TSDFX_SHA1_H_INCLUDED
+#define TSDFX_SHA1_H_INCLUDED
 
-int
-main(int argc, char *argv[])
+#define SHA1_DIGEST_LEN 20
+
+typedef void *sha1_ctx;
+
+void *tsdfx_sha1_init(void);
+void tsdfx_sha1_update(void *, const void *, size_t);
+void tsdfx_sha1_final(void *, void *);
+int tsdfx_sha1_complete(const void *, size_t, void *);
+
+static inline sha1_ctx
+sha1_init(void)
 {
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
-	exit(0);
+	return (tsdfx_sha1_init());
 }
+
+static inline void
+sha1_update(sha1_ctx ctx, const void *msg, size_t msglen)
+{
+
+	tsdfx_sha1_update(ctx, msg, msglen);
+}
+
+static inline void
+sha1_final(sha1_ctx ctx, void *md)
+{
+
+	tsdfx_sha1_final(ctx, md);
+}
+
+static inline int
+sha1_complete(const void *msg, size_t msglen, void *md)
+{
+
+	return (tsdfx_sha1_complete(msg, msglen, md));
+}
+
+#endif

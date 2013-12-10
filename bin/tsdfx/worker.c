@@ -24,16 +24,17 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 
-int
-main(int argc, char *argv[])
+/*
+ * Main loop for worker process.
+ */
+
+void
+tsdfx_worker(const char *src, const char *dst)
 {
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
+	(void)src;
+	(void)dst;
 	exit(0);
 }
