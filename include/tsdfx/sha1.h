@@ -34,6 +34,7 @@
 typedef void *sha1_ctx;
 
 void *tsdfx_sha1_init(void);
+void tsdfx_sha1_discard(void *);
 void tsdfx_sha1_update(void *, const void *, size_t);
 void tsdfx_sha1_final(void *, void *);
 int tsdfx_sha1_complete(const void *, size_t, void *);
@@ -43,6 +44,13 @@ sha1_init(void)
 {
 
 	return (tsdfx_sha1_init());
+}
+
+static inline void
+sha1_discard(sha1_ctx ctx)
+{
+
+	tsdfx_sha1_discard(ctx);
 }
 
 static inline void

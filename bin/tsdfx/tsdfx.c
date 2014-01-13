@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013 Universitetet i Oslo
+ * Copyright (c) 2013-2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,13 +27,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "tsdfx.h"
+
 int
 main(int argc, char *argv[])
 {
 
-	printf("%s", *argv++);
-	while (--argc)
-		printf(" %s", *argv++);
-	printf("\n");
+	(void)argc;
+	(void)argv;
+	tsdfx_copy(argv[1], argv[2]);
 	exit(0);
 }

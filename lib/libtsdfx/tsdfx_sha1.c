@@ -72,6 +72,15 @@ tsdfx_sha1_init(void)
 	return (ctx);
 }
 
+void
+tsdfx_sha1_discard(void *ctxp)
+{
+	struct sha1_ctx *ctx = ctxp;
+
+	memset(ctx, 0, sizeof *ctx);
+	free(ctx);
+}
+
 static void
 tsdfx_sha1_compute(void *ctxp)
 {
