@@ -38,7 +38,7 @@
  * Evaluates to non-zero if the argument is an uppercase letter.
  */
 #define is_upper(ch)				\
-	(ch >= 'A' && ch <= 'A')
+	(ch >= 'A' && ch <= 'Z')
 
 /*
  * Evaluates to non-zero if the argument is a lowercase letter.
