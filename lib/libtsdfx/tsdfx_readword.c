@@ -53,12 +53,29 @@ tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
 	errno = 0;
 
 	/* skip initial whitespace */
-	comment = 0;
-	while ((ch = getc(f)) != EOF && ch != '\n') {
-		if (ch == '#')
-			comment = 1;
-		if (!is_lws(ch) && !comment)
+	comment = escape = quote = 0;
+	while ((ch = getc(f)) != EOF) {
+		if (ch == '\n') {
+			/* either EOL or line continuation */
+			if (!escape)
+				break;
+			if (lineno != NULL)
+				++*lineno;
+			escape = 0;
+		} else if (escape) {
+			/* escaped something else */
 			break;
+		} else if (ch == '#') {
+			/* comment: until EOL, no continuation */
+			while ((ch = getc(f)) != EOF)
+				if (ch == '\n')
+					break;
+			break;
+		} else if (ch == '\\') {
+			escape = 1;
+		} else if (!is_ws(ch)) {
+			break;
+		}
 	}
 	if (ch == EOF)
 		return (NULL);
@@ -68,7 +85,6 @@ tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
 
 	word = NULL;
 	size = len = 0;
-	escape = quote = 0;
 	while ((ch = fgetc(f)) != EOF && (!is_ws(ch) || quote || escape)) {
 		if (ch == '\\' && !escape && quote != '\'') {
 			/* escape next character */
@@ -82,7 +98,7 @@ tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
 		} else if (ch == quote && !escape) {
 			/* end quote */
 			quote = 0;
-		} else if (ch == '\n' && escape && quote != '\'') {
+		} else if (ch == '\n' && escape) {
 			/* line continuation */
 			escape = 0;
 		} else {
