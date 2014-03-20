@@ -27,6 +27,7 @@ AC_CHECK_HEADERS([endian.h sys/endian.h])
 
 # functions
 AC_CHECK_FUNCS([strlcat strlcpy])
+AC_CHECK_FUNCS([closefrom])
 
 # options
 AC_ARG_ENABLE([debug],

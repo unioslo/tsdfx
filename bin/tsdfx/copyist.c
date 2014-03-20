@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2014 Universitetet i Oslo
+ * Copyright (c) 2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,19 +24,19 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_H_INCLUDED
-#define TSDFX_H_INCLUDED
-
-int tsdfx_copy(const char *, const char *);
-int tsdfx_scan(const char *, const char *);
-int tsdfx_scanner(const char *);
-
-struct map {
-	char srcpath[PATH_MAX];
-	char dstpath[PATH_MAX];
-	struct map *next;
-};
-
-struct map *map_read(const char *);
-
+#ifdef HAVE_CONFIG_H
+# include "config.h"
 #endif
+
+#include <tsdfx.h>
+
+/*
+ * Entry point for copyist
+ */
+void *
+tsdfx_copyist(struct copytask *ct)
+{
+
+	tsdfx_copy(ct->srcfile, ct->dstfile);
+	return (NULL);
+}

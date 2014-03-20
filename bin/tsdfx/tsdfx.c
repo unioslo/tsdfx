@@ -24,17 +24,52 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "tsdfx.h"
+
+static void
+usage(void)
+{
+
+	fprintf(stderr, "usage: tsdfx -m mapfile\n");
+	exit(1);
+}
 
 int
 main(int argc, char *argv[])
 {
+	const char *mapfile;
+	struct map *map;
+	int opt;
 
-	(void)argc;
-	(void)argv;
-	tsdfx_copy(argv[1], argv[2]);
+	mapfile = NULL;
+	while ((opt = getopt(argc, argv, "m:")) != -1)
+		switch (opt) {
+		case 'm':
+			mapfile = optarg;
+			break;
+		default:
+			usage();
+		}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 0)
+		usage();
+	if (mapfile == NULL)
+		usage();
+
+	map = map_read(mapfile);
+	// tsdfx_copy(argv[1], argv[2]);
+	// tsdfx_scan(argv[1], argv[2]);
 	exit(0);
 }

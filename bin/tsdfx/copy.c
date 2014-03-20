@@ -24,6 +24,10 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -190,7 +194,7 @@ copyfile_close(struct copyfile *cf)
 	free(cf);
 }
 
-/* read from both files, compare checksums and write if necessary */
+/* read from both files, compare and write if necessary */
 int
 tsdfx_copy(const char *srcfn, const char *dstfn)
 {
