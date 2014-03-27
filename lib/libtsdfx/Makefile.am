@@ -3,6 +3,7 @@ lib_LTLIBRARIES = libtsdfx.la
 libtsdfx_la_SOURCES =
 libtsdfx_la_SOURCES += tsdfx_readlinev.c
 libtsdfx_la_SOURCES += tsdfx_readword.c
+libtsdfx_la_SOURCES += tsdfx_sbuf.c
 libtsdfx_la_SOURCES += tsdfx_sha1.c
 libtsdfx_la_SOURCES += tsdfx_straddch.c
 libtsdfx_la_SOURCES += tsdfx_strlcat.c
