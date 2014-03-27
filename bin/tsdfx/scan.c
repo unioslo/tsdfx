@@ -41,10 +41,8 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-
-#include <utarray.h>
-#include <utstring.h>
 
 #include <tsdfx/ctype.h>
 #include <tsdfx/strutil.h>
@@ -53,41 +51,6 @@
 
 #define INITIAL_BUFFER_SIZE	(PATH_MAX * 2)
 #define MAXIMUM_BUFFER_SIZE	(PATH_MAX * 1024)
-
-#if 0
-/*
- * Files
- */
-static UT_array *scan_files;
-
-static void
-tsdfx_copy_append(UT_string *path)
-{
-
-	fprintf(stderr, "add %s\n", utstring_body(path));
-	utarray_push_back(scan_files, &utstring_body(path));
-}
-
-static int
-tsdfx_utarray_strcmp(const void *a, const void *b)
-{
-
-	return (strcmp(*(const char **)a, *(const char **)b));
-}
-
-static void
-tsdfx_copy_sort(void)
-{
-
-	printf("X %d\n", utarray_len(scan_files));
-	utarray_sort(scan_files, tsdfx_utarray_strcmp);
-	printf("Y %d\n", utarray_len(scan_files));
-	for (char **p = (char **)utarray_front(scan_files); p != NULL;
-	     p = (char **)utarray_next(scan_files, p)) {
-		printf("%s\n", *p);
-	}
-}
-#endif
 
 enum scan_task_state {
 	SCAN_TASK_INVALID,	/* really screwed */

@@ -31,24 +31,25 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <assert.h>
 #include <dirent.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <utstring.h>
-
 #include <tsdfx/ctype.h>
+#include <tsdfx/sbuf.h>
 #include <tsdfx/strutil.h>
 
 #include <tsdfx.h>
 
 struct scan_entry {
-	UT_string path;
+	struct sbuf *path;
 	struct scan_entry *next;
 };
 
@@ -58,27 +59,50 @@ struct scan_entry {
 static struct scan_entry *scan_todo, *scan_tail;
 
 /*
- * Append a directory to the worklist
+ * Free a worklist entry.  Save and restore errno to facilitate use in
+ * error handling code.
+ */
+static void
+tsdfx_scan_free(struct scan_entry *se)
+{
+	int serrno;
+
+	if (se != NULL) {
+		serrno = errno;
+		if (se->path != NULL)
+			sbuf_delete(se->path);
+		free(se);
+		errno = serrno;
+	}
+}
+
+/*
+ * Append a directory to the worklist.
  */
 static struct scan_entry *
-tsdfx_scan_append(UT_string *path)
+tsdfx_scan_append(const struct sbuf *path)
 {
 	struct scan_entry *se;
 
-	// fprintf(stderr, "%s(\"%s\")\n", __func__, utstring_body(path));
+	// fprintf(stderr, "%s(\"%s\")\n", __func__, sbuf_data(path));
 	if ((se = calloc(1, sizeof *se)) == NULL)
 		return (NULL);
-	utstring_init(&se->path);
-	utstring_concat(&se->path, path);
+	if ((se->path = sbuf_new_auto()) == NULL ||
+	    sbuf_cpy(se->path, sbuf_data(path)) == -1 ||
+	    sbuf_finish(se->path) == -1)
+		goto fail;
 	if (scan_todo == NULL)
 		scan_todo = scan_tail = se;
 	else
 		scan_tail = scan_tail->next = se;
 	return (se);
+fail:
+	tsdfx_scan_free(se);
+	return (NULL);
 }
 
 /*
- * Remove and return the next entry from the worklist
+ * Remove and return the next entry from the worklist.
  */
 static struct scan_entry *
 tsdfx_scan_next(void)
@@ -87,7 +111,7 @@ tsdfx_scan_next(void)
 
 	if ((se = scan_todo) != NULL) {
 		if ((scan_todo = se->next) == NULL) {
-			// assert(scan_tail == se);
+			assert(scan_tail == se);
 			scan_tail = NULL;
 		}
 	}
@@ -95,36 +119,27 @@ tsdfx_scan_next(void)
 }
 
 /*
- * Initialize the worklist and file list
+ * Initialize the worklist and file list.
  */
-int
+static int
 tsdfx_scan_init(const char *root)
 {
 	struct scan_entry *se;
 
 	if ((se = calloc(1, sizeof *se)) == NULL)
 		return (-1);
-	utstring_init(&se->path);
-	utstring_printf(&se->path, "%s", root);
+	if ((se->path = sbuf_new_auto()) == NULL ||
+	    sbuf_cpy(se->path, root) != 0)
+		goto fail;
 	scan_todo = scan_tail = se;
 	return (0);
+fail:
+	tsdfx_scan_free(se);
+	return (-1);
 }
 
 /*
- * Free a worklist entry
- */
-void
-tsdfx_scan_free(struct scan_entry *se)
-{
-
-	if (se != NULL) {
-		utstring_done(&se->path);
-		free(se);
-	}
-}
-
-/*
- * Empty the worklist and file list
+ * Empty the worklist and file list.
  */
 static void
 tsdfx_scan_cleanup(void)
@@ -136,21 +151,21 @@ tsdfx_scan_cleanup(void)
 }
 
 /*
- * Process a directory entry
+ * Process a directory entry.
  */
 static int
-tsdfx_process_dirent(const UT_string *parent, int dd, const struct dirent *de)
+tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 {
 	const char *p;
-	UT_string path;
+	struct sbuf *path;
 	struct stat st;
-	int ret;
+	int ret, serrno;
 
 	/* validate file name */
 	for (p = de->d_name; *p; ++p) {
 		if (!is_pfcs(*p)) {
 			warnx("invalid character in file %s/[%lu]",
-			    utstring_body(parent), (unsigned long)de->d_ino);
+			    sbuf_data(parent), (unsigned long)de->d_ino);
 			/* soft error */
 			return (0);
 		}
@@ -158,52 +173,57 @@ tsdfx_process_dirent(const UT_string *parent, int dd, const struct dirent *de)
 
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-		warn("fstat(%s/%s)", utstring_body(parent), de->d_name);
+		warn("fstat(%s/%s)", sbuf_data(parent), de->d_name);
 		return (-1);
 	}
 
 	/* full path */
-	utstring_init(&path);
-	utstring_concat(&path, parent);
-	utstring_printf(&path, "/%s", de->d_name);
+	if ((path = sbuf_new_auto()) == NULL ||
+	    sbuf_printf(path, "%s/%s", sbuf_data(parent), de->d_name) != 0 ||
+	    sbuf_finish(path) != 0) {
+		serrno = errno;
+		sbuf_delete(path);
+		errno = serrno;
+		return (-1);
+	}
 
 	ret = 0;
 	switch (st.st_mode & S_IFMT) {
 	case S_IFDIR:
-		if (tsdfx_scan_append(&path) == NULL) {
+		if (tsdfx_scan_append(path) == NULL) {
 			warn("failed to append %s to scan list",
-			    utstring_body(&path));
+			    sbuf_data(path));
 			ret = -1;
 		}
 		break;
 	case S_IFREG:
-		printf("%s\n", utstring_body(&path));
+		printf("%s\n", sbuf_data(path));
 		break;
 	case S_IFLNK:
 		/* soft error */
-		warnx("ignoring symlink %s", utstring_body(&path));
+		warnx("ignoring symlink %s", sbuf_data(path));
 		break;
 	default:
 		/* soft error */
-		warnx("found strange file: %s (%#o)",
-		    utstring_body(&path), st.st_mode & S_IFMT);
+		warnx("found strange file: %s (%#o)", sbuf_data(path),
+		    st.st_mode & S_IFMT);
 		break;
 	}
-	utstring_done(&path);
-	return (0);
+	sbuf_delete(path);
+	return (ret);
 }
 
 /*
- * Process a single worklist entry (directory)
+ * Process a single worklist entry (directory).
  */
 static int
-tsdfx_scan_process_directory(const UT_string *path)
+tsdfx_scan_process_directory(const struct sbuf *path)
 {
 	DIR *dir;
 	struct dirent *de;
 	int dd, serrno;
 
-	if ((dd = open(utstring_body(path), O_RDONLY)) < 0)
+	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0)
 		return (-1);
 	if ((dir = fdopendir(dd)) == NULL)
 		return (-1);
@@ -236,7 +256,7 @@ tsdfx_scanner(const char *path)
 	if (tsdfx_scan_init(path) != 0)
 		return (-1);
 	while ((se = tsdfx_scan_next()) != NULL) {
-		if (tsdfx_scan_process_directory(&se->path) != 0) {
+		if (tsdfx_scan_process_directory(se->path) != 0) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup();
@@ -244,7 +264,7 @@ tsdfx_scanner(const char *path)
 			return (-1);
 		}
 	}
-	// assert(scan_todo == NULL && scan_tail == NULL)
+	assert(scan_todo == NULL && scan_tail == NULL);
 	tsdfx_scan_cleanup();
 	return (0);
 }
