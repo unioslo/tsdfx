@@ -50,7 +50,8 @@
 #include <tsdfx/ctype.h>
 #include <tsdfx/strutil.h>
 
-#include <tsdfx.h>
+#include "tsdfx.h"
+#include "tsdfx_scan.h"
 
 #define INITIAL_BUFFER_SIZE	(PATH_MAX * 2)
 #define MAXIMUM_BUFFER_SIZE	(PATH_MAX * 1024)
@@ -94,17 +95,6 @@ static int scan_len;
 
 static inline void tsdfx_scan_invariant(const struct scan_task *);
 static inline int tsdfx_scan_find(const struct scan_task *);
-static int tsdfx_scan_add(struct scan_task *);
-static int tsdfx_scan_mute(const struct scan_task *);
-static int tsdfx_scan_unmute(const struct scan_task *);
-static int tsdfx_scan_remove(struct scan_task *);
-static struct scan_task *tsdfx_scan_new(const char *);
-static int tsdfx_scan_start(struct scan_task *);
-static int tsdfx_scan_stop(struct scan_task *);
-static int tsdfx_scan_reset(struct scan_task *);
-static void tsdfx_scan_delete(struct scan_task *);
-static int tsdfx_scan_slurp(struct scan_task *);
-static int tsdfx_scan_iter(int);
 
 /*
  * Debugging aid
@@ -161,7 +151,7 @@ tsdfx_scan_find(const struct scan_task *task)
 /*
  * Add a task to the task list.
  */
-static int
+int
 tsdfx_scan_add(struct scan_task *task)
 {
 	struct scan_task **tasks;
@@ -205,7 +195,7 @@ tsdfx_scan_add(struct scan_task *task)
 /*
  * Temporarily mute a task without removing it from the list.
  */
-static int
+int
 tsdfx_scan_mute(const struct scan_task *task)
 {
 	int i;
@@ -220,7 +210,7 @@ tsdfx_scan_mute(const struct scan_task *task)
 /*
  * Unmute a task which is already on the task list.
  */
-static int
+int
 tsdfx_scan_unmute(const struct scan_task *task)
 {
 	int i;
@@ -235,7 +225,7 @@ tsdfx_scan_unmute(const struct scan_task *task)
 /*
  * Remove a task from the task list.
  */
-static int
+int
 tsdfx_scan_remove(struct scan_task *task)
 {
 	int i;
@@ -258,7 +248,7 @@ tsdfx_scan_remove(struct scan_task *task)
 /*
  * Prepare a scan task.
  */
-static struct scan_task *
+struct scan_task *
 tsdfx_scan_new(const char *path)
 {
 	struct scan_task *task;
@@ -295,7 +285,7 @@ fail:
 /*
  * Fork a child process and start a scan task inside.
  */
-static int
+int
 tsdfx_scan_start(struct scan_task *task)
 {
 	int pd[2];
@@ -374,7 +364,7 @@ fail:
  * still isn't dead after the SIGTERM, we send a SIGKILL, wait 10 ms, and
  * try one last time.
  */
-static int
+int
 tsdfx_scan_stop(struct scan_task *task)
 {
 	int i, ret, status;
@@ -432,7 +422,7 @@ tsdfx_scan_stop(struct scan_task *task)
 /*
  * Reset a scan task.
  */
-static int
+int
 tsdfx_scan_reset(struct scan_task *task)
 {
 	struct stat st;
@@ -479,7 +469,7 @@ tsdfx_scan_reset(struct scan_task *task)
 /*
  * Delete a scan task.
  */
-static void
+void
 tsdfx_scan_delete(struct scan_task *task)
 {
 
@@ -495,7 +485,7 @@ tsdfx_scan_delete(struct scan_task *task)
 /*
  * Read all available data from a single task, validating it as we go.
  */
-static int
+int
 tsdfx_scan_slurp(struct scan_task *task)
 {
 	size_t bufsz;

@@ -27,10 +27,29 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_H_INCLUDED
-#define TSDFX_H_INCLUDED
-
-int tsdfx_init(const char *);
-void tsdfx_run(void);
-
+#ifdef HAVE_CONFIG_H
+# include "config.h"
 #endif
+
+#include "tsdfx_map.h"
+#include "tsdfx_scan.h"
+
+/*
+ *
+ */
+int
+tsdfx_init(const char *mapfile)
+{
+
+	if (map_reload(mapfile) != 0)
+		return (-1);
+	return (0);
+}
+
+void
+tsdfx_run(void)
+{
+
+	for (;;) {
+	}
+}

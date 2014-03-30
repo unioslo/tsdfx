@@ -50,7 +50,6 @@ int
 main(int argc, char *argv[])
 {
 	const char *mapfile;
-	struct map *map;
 	int opt;
 
 	mapfile = NULL;
@@ -71,8 +70,9 @@ main(int argc, char *argv[])
 	if (mapfile == NULL)
 		usage();
 
-	map = map_read(mapfile);
-	// tsdfx_copy(argv[1], argv[2]);
-	// tsdfx_scan(argv[1], argv[2]);
+	if (tsdfx_init(mapfile) != 0)
+		exit(1);
+	// add daemonization etc.
+	tsdfx_run();
 	exit(0);
 }

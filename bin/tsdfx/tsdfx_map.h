@@ -27,10 +27,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_H_INCLUDED
-#define TSDFX_H_INCLUDED
+#ifndef TSDFX_MAP_H_INCLUDED
+#define TSDFX_MAP_H_INCLUDED
 
-int tsdfx_init(const char *);
-void tsdfx_run(void);
+struct map;
+
+int map_reload(const char *);
 
 #endif

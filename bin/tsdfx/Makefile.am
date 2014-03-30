@@ -2,6 +2,7 @@ AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include
 sbin_PROGRAMS = tsdfx
 tsdfx_SOURCES =
 tsdfx_SOURCES += main.c
+tsdfx_SOURCES += tsdfx.c
 tsdfx_SOURCES += copy.c
 tsdfx_SOURCES += map.c
 tsdfx_SOURCES += scan.c

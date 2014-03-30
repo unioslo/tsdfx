@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2014 Universitetet i Oslo
+ * Copyright (c) 2014 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,12 +25,27 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * $Id$
  */
 
-#ifndef TSDFX_H_INCLUDED
-#define TSDFX_H_INCLUDED
+#ifndef TSDFX_SCAN_H_INCLUDED
+#define TSDFX_SCAN_H_INCLUDED
 
-int tsdfx_init(const char *);
-void tsdfx_run(void);
+struct scan_task;
+
+int tsdfx_scan_add(struct scan_task *);
+int tsdfx_scan_mute(const struct scan_task *);
+int tsdfx_scan_unmute(const struct scan_task *);
+int tsdfx_scan_remove(struct scan_task *);
+struct scan_task *tsdfx_scan_new(const char *);
+int tsdfx_scan_start(struct scan_task *);
+int tsdfx_scan_stop(struct scan_task *);
+int tsdfx_scan_reset(struct scan_task *);
+void tsdfx_scan_delete(struct scan_task *);
+int tsdfx_scan_slurp(struct scan_task *);
+int tsdfx_scan_iter(int);
+
+int tsdfx_scanner(const char *);
 
 #endif

@@ -42,7 +42,18 @@
 
 #include <tsdfx/strutil.h>
 
-#include <tsdfx.h>
+#include "tsdfx_map.h"
+#include "tsdfx_scan.h"
+
+struct map {
+	char srcpath[PATH_MAX];
+	char dstpath[PATH_MAX];
+	struct scan_task *task;
+};
+
+static struct map **map;
+static size_t map_sz;
+static int map_len;
 
 /*
  * Validate a path
@@ -71,8 +82,8 @@ map_new(const char *fn, int n, const char *src, const char *dst)
 {
 	struct map *m;
 
-	if ((m = malloc(sizeof *m)) == NULL) {
-		warn("malloc()");
+	if ((m = calloc(1, sizeof *m)) == NULL) {
+		warn("calloc()");
 		return (NULL);
 	}
 	if (verify_path(src, m->srcpath) != 0) {
@@ -89,34 +100,72 @@ map_new(const char *fn, int n, const char *src, const char *dst)
 }
 
 /*
+ * Delete a struct map
+ */
+static void
+map_delete(struct map *m)
+{
+
+	if (m != NULL) {
+		tsdfx_scan_delete(m->task);
+		free(m->srcpath);
+		free(m->dstpath);
+		free(m);
+	}
+}
+
+/*
+ * Compare two maps
+ */
+static int
+map_compare(const void *a, const void *b)
+{
+	const struct map *ma = *(const struct map * const *)a;
+	const struct map *mb = *(const struct map * const *)b;
+
+	return (strcmp(ma->srcpath, mb->srcpath));
+}
+
+/*
  * Read the map file
  */
-struct map *
-map_read(const char *fn)
+static int
+map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 {
 	FILE *f;
-	struct map *m, *n;
 	char **words;
-	int i, len, lno;
+	int i, lno, nwords;
+	struct map **m, **tm;
+	size_t sz;
+	int len;
 
 	if ((f = fopen(fn, "r")) == NULL) {
 		warn("%s", fn);
-		return (NULL);
+		return (-1);
 	}
-	m = n = NULL;
-	while ((words = tsdfx_readlinev(f, &lno, &len)) != NULL && len > 0) {
-		if (len > 0) {
-			if (len != 3 || strcmp(words[1], "=>") != 0) {
-				warnx("%s:%d: syntax error", fn, lno);
-				goto fail;
-			}
-			if ((m = map_new(fn, lno, words[0], words[2])) == NULL)
-				goto fail;
-			/* prepend to list */
-			m->next = n;
-			n = m;
+	words = NULL;
+	nwords = 0;
+	m = tm = NULL;
+	sz = 0;
+	len = 0;
+	lno = 0;
+	while ((words = tsdfx_readlinev(f, &lno, &nwords)) != NULL) {
+		if (nwords == 0)
+			continue;
+		if (nwords != 3 || strcmp(words[1], "=>") != 0) {
+			warnx("%s:%d: syntax error", fn, lno);
+			goto fail;
 		}
-		for (i = 0; i < len; ++i)
+		if (len >= (int)sz) {
+			sz = sz ? sz * 2 : 32;
+			if ((tm = realloc(m, sz * sizeof *tm)) == NULL)
+				goto fail;
+			m = tm;
+		}
+		if ((m[len] = map_new(fn, lno, words[0], words[2])) == NULL)
+			goto fail;
+		++len;
+		for (i = 0; i < nwords; ++i)
 			free(words[i]);
 		free(words);
 	}
@@ -125,20 +174,93 @@ map_read(const char *fn)
 		goto fail;
 	}
 	fclose(f);
-	return (n);
+	qsort(m, len, sizeof *m, map_compare);
+	*map = m;
+	*map_sz = sz;
+	*map_len = len;
+	return (0);
 fail:
 	if (words != NULL) {
-		for (i = 0; i < len; ++i)
+		for (i = 0; i < nwords; ++i)
 			free(words[i]);
 		free(words);
 	}
-	while (n != NULL) {
-		m = n;
-		n = m->next;
-		free(m->srcpath);
-		free(m->dstpath);
-		free(m);
-	}
+	for (i = 0; i < len; ++i)
+		map_delete(m[i]);
+	free(m);
 	fclose(f);
-	return (NULL);
+	return (-1);
+}
+
+/*
+ * Reload the map from the specified file.
+ */
+int
+map_reload(const char *fn)
+{
+	struct map **newmap;
+	size_t newmap_sz;
+	int newmap_len;
+	int i, j, res;
+
+	/* read the new map */
+	if (map_read(fn, &newmap, &newmap_sz, &newmap_len) != 0)
+		return (-1);
+	/* create new tasks */
+	i = j = 0;
+	while (j < newmap_len) {
+		res = (i < map_len) ?
+		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : 1;
+		if (res == 0) {
+			/* same task, process later */
+			++i, ++j;
+		} else if (res < 0) {
+			/* deleted task, process later */
+			++i;
+		} else if (res > 0) {
+			/* new task */
+			newmap[j]->task =
+			    tsdfx_scan_new(newmap[j]->srcpath);
+			if (newmap[j]->task == NULL)
+				goto fail;
+			++j;
+		} else {
+			/* unreachable */
+		}
+	}
+	/* process deleted tasks */
+	i = j = 0;
+	while (i < map_len) {
+		res = (j < newmap_len) ?
+		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : -1;
+		if (res == 0) {
+			/* same task */
+			newmap[j]->task = map[i]->task;
+			map[i]->task = NULL;
+			++i, ++j;
+		} else if (res < 0) {
+			/* deleted task */
+			tsdfx_scan_delete(map[i]->task);
+			map[i]->task = NULL;
+			++i;
+		} else if (res > 0) {
+			/* new task, already processed */
+			++j;
+		} else {
+			/* unreachable */
+		}
+	}
+	/* delete the old map */
+	for (i = 0; i < map_len; ++i)
+		map_delete(map[i]);
+	free(map);
+	map = newmap;
+	map_sz = newmap_sz;
+	map_len = newmap_len;
+	return (0);
+fail:
+	for (j = 0; i < newmap_len; ++j)
+		map_delete(newmap[j]);
+	free(newmap);
+	return (-1);
 }
