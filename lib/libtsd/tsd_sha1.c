@@ -45,8 +45,8 @@
 #include <endian.h>
 #endif
 
-#include <tsdfx/bitwise.h>
-#include <tsdfx/sha1.h>
+#include <tsd/bitwise.h>
+#include <tsd/sha1.h>
 
 static uint32_t sha1_h[5] = {
 	0x67452301U, 0xefcdab89U, 0x98badcfeU, 0x10325476U, 0xc3d2e1f0U,
@@ -64,7 +64,7 @@ struct sha1_ctx {
 };
 
 void *
-tsdfx_sha1_init(void)
+tsd_sha1_init(void)
 {
 	struct sha1_ctx *ctx;
 
@@ -76,7 +76,7 @@ tsdfx_sha1_init(void)
 }
 
 void
-tsdfx_sha1_discard(void *ctxp)
+tsd_sha1_discard(void *ctxp)
 {
 	struct sha1_ctx *ctx = ctxp;
 
@@ -85,7 +85,7 @@ tsdfx_sha1_discard(void *ctxp)
 }
 
 static void
-tsdfx_sha1_compute(void *ctxp)
+tsd_sha1_compute(void *ctxp)
 {
 	struct sha1_ctx *ctx = ctxp;
 	uint32_t w[80], a, b, c, d, e, f, temp;
@@ -95,7 +95,7 @@ tsdfx_sha1_compute(void *ctxp)
 		w[i] = be32toh(w[i]);
 	for (int i = 16; i < 80; ++i) {
 		w[i] = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16];
-		w[i] = tsdfx_rol(w[i], 1);
+		w[i] = tsd_rol(w[i], 1);
 	}
 	a = ctx->h[0];
 	b = ctx->h[1];
@@ -111,10 +111,10 @@ tsdfx_sha1_compute(void *ctxp)
 			f = (b & c) | (b & d) | (c & d);
 		else
 			f = b ^ c ^ d;
-		temp = tsdfx_rol(a, 5) + f + e + w[t] + ctx->k[t/20];
+		temp = tsd_rol(a, 5) + f + e + w[t] + ctx->k[t/20];
 		e = d;
 		d = c;
-		c = tsdfx_ror(b, 2);
+		c = tsd_ror(b, 2);
 		b = a;
 		a = temp;
 	}
@@ -126,7 +126,7 @@ tsdfx_sha1_compute(void *ctxp)
 }
 
 void
-tsdfx_sha1_update(void *ctxp, const void *buf, size_t len)
+tsd_sha1_update(void *ctxp, const void *buf, size_t len)
 {
 	struct sha1_ctx *ctx = ctxp;
 	size_t copylen;
@@ -141,7 +141,7 @@ tsdfx_sha1_update(void *ctxp, const void *buf, size_t len)
 		buf += copylen;
 		len -= copylen;
 		if (ctx->blocklen == 64) {
-			tsdfx_sha1_compute(ctx);
+			tsd_sha1_compute(ctx);
 			ctx->blocklen = 0;
 			memset(ctx->block, 0, 64);
 		}
@@ -149,19 +149,19 @@ tsdfx_sha1_update(void *ctxp, const void *buf, size_t len)
 }
 
 void
-tsdfx_sha1_final(void *ctxp, void *digest)
+tsd_sha1_final(void *ctxp, void *digest)
 {
 	struct sha1_ctx *ctx = ctxp;
 	uint32_t hi, lo;
 
 	if (ctx->blocklen == 64) {
-		tsdfx_sha1_compute(ctx);
+		tsd_sha1_compute(ctx);
 		ctx->blocklen = 0;
 		memset(ctx->block, 0, 64);
 	}
 	ctx->block[ctx->blocklen++] = 0x80;
 	if (ctx->blocklen > 56) {
-		tsdfx_sha1_compute(ctx);
+		tsd_sha1_compute(ctx);
 		ctx->blocklen = 0;
 		memset(ctx->block, 0, 64);
 	}
@@ -170,7 +170,7 @@ tsdfx_sha1_final(void *ctxp, void *digest)
 	memcpy(ctx->block + 56, &hi, 4);
 	memcpy(ctx->block + 60, &lo, 4);
 	ctx->blocklen = 64;
-	tsdfx_sha1_compute(ctx);
+	tsd_sha1_compute(ctx);
 	for (int i = 0; i < 5; ++i)
 		ctx->h[i] = htobe32(ctx->h[i]);
 	memcpy(digest, ctx->h, 20);
@@ -179,7 +179,7 @@ tsdfx_sha1_final(void *ctxp, void *digest)
 }
 
 int
-tsdfx_sha1_complete(const void *buf, size_t len, void *digest)
+tsd_sha1_complete(const void *buf, size_t len, void *digest)
 {
 	void *ctxp;
 

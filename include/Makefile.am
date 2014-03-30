@@ -1,5 +1,5 @@
 noinst_HEADERS =
-noinst_HEADERS += tsdfx/ctype.h
-noinst_HEADERS += tsdfx/sbuf.h
-noinst_HEADERS += tsdfx/sha1.h
-noinst_HEADERS += tsdfx/strutil.h
+noinst_HEADERS += tsd/ctype.h
+noinst_HEADERS += tsd/sbuf.h
+noinst_HEADERS += tsd/sha1.h
+noinst_HEADERS += tsd/strutil.h

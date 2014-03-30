@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tsdfx/sbuf.h>
+#include <tsd/sbuf.h>
 
 #define	KASSERT(e, m)		assert(e)
 #define	SBMALLOC(size)		malloc(size)

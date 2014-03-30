@@ -1,1 +1,1 @@
-SUBDIRS = libtsdfx
+SUBDIRS = libtsd

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2014 Universitetet i Oslo
+ * Copyright (c) 2012 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,26 +27,70 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_BITWISE_H_INCLUDED
-#define TSDFX_BITWISE_H_INCLUDED
-
-#if 1
-static inline uint32_t
-tsdfx_rol(uint32_t i, int n)
-{
-
-        return (i << n | i >> (32 - n));
-}
-
-static inline uint32_t
-tsdfx_ror(uint32_t i, int n)
-{
-
-        return (i << (32 - n) | i >> n);
-}
-#else
-#define tsdfx_rol(i, n) ((i) << (n) | (i) >> (32 - (n)))
-#define tsdfx_ror(i, n) ((i) << (32 - (n)) | (i) >> (n))
+#ifdef HAVE_CONFIG_H
+# include "config.h"
 #endif
 
-#endif
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <tsd/strutil.h>
+
+#define MIN_WORDV_SIZE	32
+
+/*
+ * Read a line from a file and split it into words.
+ */
+
+char **
+tsd_readlinev(FILE *f, int *lineno, int *lenp)
+{
+	char *word, **wordv, **tmp;
+	size_t wordlen, wordvsize;
+	int ch, serrno, wordvlen;
+
+	wordvsize = MIN_WORDV_SIZE;
+	wordvlen = 0;
+	if ((wordv = malloc(wordvsize * sizeof *wordv)) == NULL) {
+		errno = ENOMEM;
+		return (NULL);
+	}
+	wordv[wordvlen] = NULL;
+	while ((word = tsd_readword(f, lineno, &wordlen)) != NULL) {
+		if ((unsigned int)wordvlen + 1 >= wordvsize) {
+			/* need to expand the array */
+			wordvsize *= 2;
+			tmp = realloc(wordv, wordvsize * sizeof *wordv);
+			if (tmp == NULL) {
+				errno = ENOMEM;
+				break;
+			}
+			wordv = tmp;
+		}
+		/* insert our word */
+		wordv[wordvlen++] = word;
+		wordv[wordvlen] = NULL;
+	}
+	if (errno != 0) {
+		/* I/O error or out of memory */
+		serrno = errno;
+		while (wordvlen--)
+			free(wordv[wordvlen]);
+		free(wordv);
+		errno = serrno;
+		return (NULL);
+	}
+	/* assert(!ferror(f)) */
+	ch = fgetc(f);
+	/* assert(ch == EOF || ch == '\n') */
+	if (ch == EOF && wordvlen == 0) {
+		free(wordv);
+		return (NULL);
+	}
+	if (ch == '\n' && lineno != NULL)
+		++*lineno;
+	if (lenp != NULL)
+		*lenp = wordvlen;
+	return (wordv);
+}

@@ -42,10 +42,10 @@
 #include <unistd.h>
 
 #ifdef RUNNING_SHA
-#include <tsdfx/sha1.h>
+#include <tsd/sha1.h>
 #endif
 
-#include <tsdfx/strutil.h>
+#include <tsd/strutil.h>
 
 /* XXX make this a configuration parameter */
 #define BLOCKSIZE	1024576

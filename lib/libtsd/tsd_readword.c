@@ -35,8 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <tsdfx/ctype.h>
-#include "tsdfx/strutil.h"
+#include <tsd/ctype.h>
+#include "tsd/strutil.h"
 
 #define MIN_WORD_SIZE	32
 
@@ -45,7 +45,7 @@
  */
 
 char *
-tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
+tsd_readword(FILE *f, int *lineno, size_t *lenp)
 {
 	char *word;
 	size_t size, len;
@@ -95,7 +95,7 @@ tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
 			/* begin quote */
 			quote = ch;
 			/* edge case: empty quoted string */
-			if (tsdfx_straddch(&word, &size, &len, 0) != 0)
+			if (tsd_straddch(&word, &size, &len, 0) != 0)
 				return (NULL);
 		} else if (ch == quote && !escape) {
 			/* end quote */
@@ -105,12 +105,12 @@ tsdfx_readword(FILE *f, int *lineno, size_t *lenp)
 			escape = 0;
 		} else {
 			if (escape && quote && ch != '\\' && ch != quote &&
-			    tsdfx_straddch(&word, &size, &len, '\\') != 0) {
+			    tsd_straddch(&word, &size, &len, '\\') != 0) {
 				free(word);
 				errno = ENOMEM;
 				return (NULL);
 			}
-			if (tsdfx_straddch(&word, &size, &len, ch) != 0) {
+			if (tsd_straddch(&word, &size, &len, ch) != 0) {
 				free(word);
 				errno = ENOMEM;
 				return (NULL);

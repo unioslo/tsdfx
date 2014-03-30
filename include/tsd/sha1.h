@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2012 Universitetet i Oslo
  * Copyright (c) 2012 Dag-Erling Smørgrav
  * All rights reserved.
  *
@@ -27,61 +28,52 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_CTYPE_H_INCLUDED
-#define TSDFX_CTYPE_H_INCLUDED
+#ifndef TSD_SHA1_H_INCLUDED
+#define TSD_SHA1_H_INCLUDED
 
-/*
- * Evaluates to non-zero if the argument is a digit.
- */
-#define is_digit(ch)				\
-	(ch >= '0' && ch <= '9')
+#define SHA1_DIGEST_LEN 20
 
-/*
- * Evaluates to non-zero if the argument is an uppercase letter.
- */
-#define is_upper(ch)				\
-	(ch >= 'A' && ch <= 'Z')
+typedef void *sha1_ctx;
 
-/*
- * Evaluates to non-zero if the argument is a lowercase letter.
- */
-#define is_lower(ch)				\
-	(ch >= 'a' && ch <= 'z')
+void *tsd_sha1_init(void);
+void tsd_sha1_discard(void *);
+void tsd_sha1_update(void *, const void *, size_t);
+void tsd_sha1_final(void *, void *);
+int tsd_sha1_complete(const void *, size_t, void *);
 
-/*
- * Evaluates to non-zero if the argument is a letter.
- */
-#define is_letter(ch)				\
-	(is_upper(ch) || is_lower(ch))
+static inline sha1_ctx
+sha1_init(void)
+{
 
-/*
- * Evaluates to non-zero if the argument is a linear whitespace character.
- * For the purposes of this macro, the definition of linear whitespace is
- * extended to include the form feed and carraige return characters.
- */
-#define is_lws(ch)				\
-	(ch == ' ' || ch == '\t' || ch == '\f' || ch == '\r')
+	return (tsd_sha1_init());
+}
 
-/*
- * Evaluates to non-zero if the argument is a whitespace character.
- */
-#define is_ws(ch)				\
-	(is_lws(ch) || ch == '\n')
+static inline void
+sha1_discard(sha1_ctx ctx)
+{
 
-/*
- * Evaluates to non-zero if the argument is a printable ASCII character.
- * Assumes that the execution character set is a superset of ASCII.
- */
-#define is_p(ch) \
-	(ch >= '!' && ch <= '~')
+	tsd_sha1_discard(ctx);
+}
 
-/*
- * Returns non-zero if the argument belongs to the POSIX Portable Filename
- * Character Set.  Assumes that the execution character set is a superset
- * of ASCII.
- */
-#define is_pfcs(ch)				\
-	(is_digit(ch) || is_letter(ch)  ||	\
-	 ch == '.' || ch == '_' || ch == '-')
+static inline void
+sha1_update(sha1_ctx ctx, const void *msg, size_t msglen)
+{
+
+	tsd_sha1_update(ctx, msg, msglen);
+}
+
+static inline void
+sha1_final(sha1_ctx ctx, void *md)
+{
+
+	tsd_sha1_final(ctx, md);
+}
+
+static inline int
+sha1_complete(const void *msg, size_t msglen, void *md)
+{
+
+	return (tsd_sha1_complete(msg, msglen, md));
+}
 
 #endif

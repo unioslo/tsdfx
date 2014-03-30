@@ -50,6 +50,6 @@ AC_CONFIG_FILES([
     bin/Makefile
     bin/tsdfx/Makefile
     lib/Makefile
-    lib/libtsdfx/Makefile
+    lib/libtsd/Makefile
 ])
 AC_OUTPUT

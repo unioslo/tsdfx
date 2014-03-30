@@ -27,70 +27,61 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <tsdfx/strutil.h>
-
-#define MIN_WORDV_SIZE	32
+#ifndef TSD_CTYPE_H_INCLUDED
+#define TSD_CTYPE_H_INCLUDED
 
 /*
- * Read a line from a file and split it into words.
+ * Evaluates to non-zero if the argument is a digit.
  */
+#define is_digit(ch)				\
+	(ch >= '0' && ch <= '9')
 
-char **
-tsdfx_readlinev(FILE *f, int *lineno, int *lenp)
-{
-	char *word, **wordv, **tmp;
-	size_t wordlen, wordvsize;
-	int ch, serrno, wordvlen;
+/*
+ * Evaluates to non-zero if the argument is an uppercase letter.
+ */
+#define is_upper(ch)				\
+	(ch >= 'A' && ch <= 'Z')
 
-	wordvsize = MIN_WORDV_SIZE;
-	wordvlen = 0;
-	if ((wordv = malloc(wordvsize * sizeof *wordv)) == NULL) {
-		errno = ENOMEM;
-		return (NULL);
-	}
-	wordv[wordvlen] = NULL;
-	while ((word = tsdfx_readword(f, lineno, &wordlen)) != NULL) {
-		if ((unsigned int)wordvlen + 1 >= wordvsize) {
-			/* need to expand the array */
-			wordvsize *= 2;
-			tmp = realloc(wordv, wordvsize * sizeof *wordv);
-			if (tmp == NULL) {
-				errno = ENOMEM;
-				break;
-			}
-			wordv = tmp;
-		}
-		/* insert our word */
-		wordv[wordvlen++] = word;
-		wordv[wordvlen] = NULL;
-	}
-	if (errno != 0) {
-		/* I/O error or out of memory */
-		serrno = errno;
-		while (wordvlen--)
-			free(wordv[wordvlen]);
-		free(wordv);
-		errno = serrno;
-		return (NULL);
-	}
-	/* assert(!ferror(f)) */
-	ch = fgetc(f);
-	/* assert(ch == EOF || ch == '\n') */
-	if (ch == EOF && wordvlen == 0) {
-		free(wordv);
-		return (NULL);
-	}
-	if (ch == '\n' && lineno != NULL)
-		++*lineno;
-	if (lenp != NULL)
-		*lenp = wordvlen;
-	return (wordv);
-}
+/*
+ * Evaluates to non-zero if the argument is a lowercase letter.
+ */
+#define is_lower(ch)				\
+	(ch >= 'a' && ch <= 'z')
+
+/*
+ * Evaluates to non-zero if the argument is a letter.
+ */
+#define is_letter(ch)				\
+	(is_upper(ch) || is_lower(ch))
+
+/*
+ * Evaluates to non-zero if the argument is a linear whitespace character.
+ * For the purposes of this macro, the definition of linear whitespace is
+ * extended to include the form feed and carraige return characters.
+ */
+#define is_lws(ch)				\
+	(ch == ' ' || ch == '\t' || ch == '\f' || ch == '\r')
+
+/*
+ * Evaluates to non-zero if the argument is a whitespace character.
+ */
+#define is_ws(ch)				\
+	(is_lws(ch) || ch == '\n')
+
+/*
+ * Evaluates to non-zero if the argument is a printable ASCII character.
+ * Assumes that the execution character set is a superset of ASCII.
+ */
+#define is_p(ch) \
+	(ch >= '!' && ch <= '~')
+
+/*
+ * Returns non-zero if the argument belongs to the POSIX Portable Filename
+ * Character Set.  Assumes that the execution character set is a superset
+ * of ASCII.
+ */
+#define is_pfcs(ch)				\
+	(is_digit(ch) || is_letter(ch)  ||	\
+	 ch == '.' || ch == '_' || ch == '-')
+
+#endif

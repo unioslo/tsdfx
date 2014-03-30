@@ -1,6 +1,5 @@
 /*-
- * Copyright (c) 2012 Universitetet i Oslo
- * Copyright (c) 2012 Dag-Erling Smørgrav
+ * Copyright (c) 2011-2012 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,52 +27,33 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_SHA1_H_INCLUDED
-#define TSDFX_SHA1_H_INCLUDED
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
 
-#define SHA1_DIGEST_LEN 20
+#ifndef HAVE_STRLCAT
 
-typedef void *sha1_ctx;
+#include <stddef.h>
 
-void *tsdfx_sha1_init(void);
-void tsdfx_sha1_discard(void *);
-void tsdfx_sha1_update(void *, const void *, size_t);
-void tsdfx_sha1_final(void *, void *);
-int tsdfx_sha1_complete(const void *, size_t, void *);
+#include <tsd/strutil.h>
 
-static inline sha1_ctx
-sha1_init(void)
+/*
+ * Like strcat(3), but always NUL-terminates; returns strlen(src)
+ */
+
+size_t
+tsd_strlcat(char *dst, const char *src, size_t size)
 {
+	size_t len;
 
-	return (tsdfx_sha1_init());
-}
-
-static inline void
-sha1_discard(sha1_ctx ctx)
-{
-
-	tsdfx_sha1_discard(ctx);
-}
-
-static inline void
-sha1_update(sha1_ctx ctx, const void *msg, size_t msglen)
-{
-
-	tsdfx_sha1_update(ctx, msg, msglen);
-}
-
-static inline void
-sha1_final(sha1_ctx ctx, void *md)
-{
-
-	tsdfx_sha1_final(ctx, md);
-}
-
-static inline int
-sha1_complete(const void *msg, size_t msglen, void *md)
-{
-
-	return (tsdfx_sha1_complete(msg, msglen, md));
+	for (len = 0; *dst && size > 1; ++len, --size)
+		dst++;
+	for (; *src && size > 1; ++len, --size)
+		*dst++ = *src++;
+	*dst = '\0';
+	while (*src)
+		++len, ++src;
+	return (len);
 }
 
 #endif

@@ -8,6 +8,6 @@ tsdfx_SOURCES += map.c
 tsdfx_SOURCES += scan.c
 tsdfx_SOURCES += scanner.c
 tsdfx_SOURCES += worker.c
-tsdfx_LDADD = $(CRYPTO_LIBS) $(top_builddir)/lib/libtsdfx/libtsdfx.la
+tsdfx_LDADD = $(CRYPTO_LIBS) $(top_builddir)/lib/libtsd/libtsd.la
 noinst_HEADERS = tsdfx.h
 dist_man8_MANS = tsdfx.8

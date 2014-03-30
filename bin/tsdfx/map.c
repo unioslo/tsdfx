@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tsdfx/strutil.h>
+#include <tsd/strutil.h>
 
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
@@ -149,7 +149,7 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	sz = 0;
 	len = 0;
 	lno = 0;
-	while ((words = tsdfx_readlinev(f, &lno, &nwords)) != NULL) {
+	while ((words = tsd_readlinev(f, &lno, &nwords)) != NULL) {
 		if (nwords == 0)
 			continue;
 		if (nwords != 3 || strcmp(words[1], "=>") != 0) {

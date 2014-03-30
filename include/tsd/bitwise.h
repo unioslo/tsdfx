@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2011-2012 Dag-Erling Smørgrav
+ * Copyright (c) 2013-2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,31 +27,26 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#ifndef TSD_BITWISE_H_INCLUDED
+#define TSD_BITWISE_H_INCLUDED
 
-#ifndef HAVE_STRLCPY
-
-#include <stddef.h>
-
-#include <tsdfx/strutil.h>
-
-/*
- * Like strcpy(3), but always NUL-terminates; returns strlen(src)
- */
-
-size_t
-tsdfx_strlcpy(char *dst, const char *src, size_t size)
+#if 1
+static inline uint32_t
+tsd_rol(uint32_t i, int n)
 {
-	size_t len;
 
-	for (len = 0; *src && size > 1; ++len, --size)
-		*dst++ = *src++;
-	*dst = '\0';
-	while (*src)
-		++len, ++src;
-	return (len);
+        return (i << n | i >> (32 - n));
 }
+
+static inline uint32_t
+tsd_ror(uint32_t i, int n)
+{
+
+        return (i << (32 - n) | i >> n);
+}
+#else
+#define tsd_rol(i, n) ((i) << (n) | (i) >> (32 - (n)))
+#define tsd_ror(i, n) ((i) << (32 - (n)) | (i) >> (n))
+#endif
 
 #endif

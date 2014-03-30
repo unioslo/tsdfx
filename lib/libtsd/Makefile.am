@@ -1,0 +1,10 @@
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include
+lib_LTLIBRARIES = libtsd.la
+libtsd_la_SOURCES =
+libtsd_la_SOURCES += tsd_readlinev.c
+libtsd_la_SOURCES += tsd_readword.c
+libtsd_la_SOURCES += tsd_sbuf.c
+libtsd_la_SOURCES += tsd_sha1.c
+libtsd_la_SOURCES += tsd_straddch.c
+libtsd_la_SOURCES += tsd_strlcat.c
+libtsd_la_SOURCES += tsd_strlcpy.c

@@ -47,8 +47,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <tsdfx/ctype.h>
-#include <tsdfx/strutil.h>
+#include <tsd/ctype.h>
+#include <tsd/strutil.h>
 
 #include "tsdfx.h"
 #include "tsdfx_scan.h"

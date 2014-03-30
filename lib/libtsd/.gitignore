@@ -4,4 +4,4 @@ Makefile.in
 Makefile
 *.lo
 *.o
-libtsdfx.la
+libtsd.la

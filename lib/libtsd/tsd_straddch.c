@@ -34,7 +34,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include <tsdfx/strutil.h>
+#include <tsd/strutil.h>
 
 #define MIN_STR_SIZE	32
 
@@ -43,7 +43,7 @@
  */
 
 int
-tsdfx_straddch(char **str, size_t *size, size_t *len, int ch)
+tsd_straddch(char **str, size_t *size, size_t *len, int ch)
 {
 	size_t tmpsize;
 	char *tmpstr;

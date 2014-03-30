@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2011-2012 Dag-Erling Smørgrav
+ * Copyright (c) 2013-2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,33 +28,25 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#ifndef TSD_STRUTIL_H_INCLUDED
+#define TSD_STRUTIL_H_INCLUDED
 
 #ifndef HAVE_STRLCAT
+size_t tsd_strlcat(char *, const char *, size_t);
+#undef strlcat
+#define strlcat(arg, ...) tsd_strlcat(arg, __VA_ARGS__)
+#endif
 
-#include <stddef.h>
+#ifndef HAVE_STRLCPY
+size_t tsd_strlcpy(char *, const char *, size_t);
+#undef strlcpy
+#define strlcpy(arg, ...) tsd_strlcpy(arg, __VA_ARGS__)
+#endif
 
-#include <tsdfx/strutil.h>
-
-/*
- * Like strcat(3), but always NUL-terminates; returns strlen(src)
- */
-
-size_t
-tsdfx_strlcat(char *dst, const char *src, size_t size)
-{
-	size_t len;
-
-	for (len = 0; *dst && size > 1; ++len, --size)
-		dst++;
-	for (; *src && size > 1; ++len, --size)
-		*dst++ = *src++;
-	*dst = '\0';
-	while (*src)
-		++len, ++src;
-	return (len);
-}
+int tsd_straddch(char **, size_t *, size_t *, int);
+#ifdef _IOFBF
+char *tsd_readword(FILE *, int *, size_t *);
+char **tsd_readlinev(FILE *, int *, int *);
+#endif
 
 #endif
