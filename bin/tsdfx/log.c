@@ -37,6 +37,7 @@
 
 #include "tsdfx_log.h"
 
+int tsdfx_quiet = 0;
 int tsdfx_verbose = 1;
 
 void

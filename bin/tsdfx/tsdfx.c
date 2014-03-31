@@ -31,8 +31,30 @@
 # include "config.h"
 #endif
 
+#include <err.h>
+#include <signal.h>
+
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
+#include "tsdfx.h"
+
+static volatile sig_atomic_t sighup;
+
+/*
+ * Signal handler
+ */
+static void
+signal_handler(int sig)
+{
+
+	switch (sig) {
+	case SIGHUP:
+		++sighup;
+		break;
+	default:
+		/* nothing */;
+	}
+}
 
 /*
  *
@@ -41,15 +63,28 @@ int
 tsdfx_init(const char *mapfile)
 {
 
+	if (tsdfx_scan_init() != 0)
+		return (-1);
 	if (map_reload(mapfile) != 0)
 		return (-1);
 	return (0);
 }
 
 void
-tsdfx_run(void)
+tsdfx_run(const char *mapfile)
 {
 
+	signal(SIGHUP, signal_handler);
 	for (;;) {
+		/* start any scheduled tasks */
+		tsdfx_scan_sched();
+		/* wait up to 1 second for input */
+		tsdfx_scan_iter(1000);
+		/* check for sighup */
+		if (sighup) {
+			sighup = 0;
+			if (map_reload(mapfile) != 0)
+				warn("failed to reload map file");
+		}
 	}
 }

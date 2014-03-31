@@ -31,6 +31,6 @@
 #define TSDFX_H_INCLUDED
 
 int tsdfx_init(const char *);
-void tsdfx_run(void);
+void tsdfx_run(const char *);
 
 #endif

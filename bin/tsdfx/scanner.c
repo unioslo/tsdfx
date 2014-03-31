@@ -49,7 +49,8 @@
 #include <tsd/sbuf.h>
 #include <tsd/strutil.h>
 
-#include <tsdfx.h>
+#include "tsdfx.h"
+#include "tsdfx_log.h"
 
 struct scan_entry {
 	struct sbuf *path;
@@ -87,7 +88,6 @@ tsdfx_scan_append(const struct sbuf *path)
 {
 	struct scan_entry *se;
 
-	// fprintf(stderr, "%s(\"%s\")\n", __func__, sbuf_data(path));
 	if ((se = calloc(1, sizeof *se)) == NULL)
 		return (NULL);
 	if ((se->path = sbuf_new_auto()) == NULL ||
@@ -132,7 +132,8 @@ tsdfx_scan_init(const char *root)
 	if ((se = calloc(1, sizeof *se)) == NULL)
 		return (-1);
 	if ((se->path = sbuf_new_auto()) == NULL ||
-	    sbuf_cpy(se->path, root) != 0)
+	    sbuf_cpy(se->path, root) != 0 ||
+	    sbuf_finish(se->path) != 0)
 		goto fail;
 	scan_todo = scan_tail = se;
 	return (0);
@@ -167,16 +168,17 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 	/* validate file name */
 	for (p = de->d_name; *p; ++p) {
 		if (!is_pfcs(*p)) {
-			warnx("invalid character in file %s/[%lu]",
-			    sbuf_data(parent), (unsigned long)de->d_ino);
 			/* soft error */
+			NOTICE("invalid character in file %s/[%lu]",
+			    sbuf_data(parent), (unsigned long)de->d_ino);
 			return (0);
 		}
 	}
 
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-		warn("fstat(%s/%s)", sbuf_data(parent), de->d_name);
+		/* hard error */
+		ERROR("fstat(%s/%s)", sbuf_data(parent), de->d_name);
 		return (-1);
 	}
 
@@ -191,24 +193,27 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 	}
 
 	ret = 0;
+	p = sbuf_data(path);
+	if ((p[0] == '.' || p[0] == '/') && p[1] == '/')
+		++p;
 	switch (st.st_mode & S_IFMT) {
 	case S_IFDIR:
 		if (tsdfx_scan_append(path) == NULL) {
-			warn("failed to append %s to scan list",
-			    sbuf_data(path));
+			/* hard error */
+			ERROR("failed to append %s to scan list", p);
 			ret = -1;
 		}
 		break;
 	case S_IFREG:
-		printf("%s\n", sbuf_data(path));
+		printf("%s\n", p);
 		break;
 	case S_IFLNK:
 		/* soft error */
-		warnx("ignoring symlink %s", sbuf_data(path));
+		NOTICE("ignoring symlink %s", p);
 		break;
 	default:
 		/* soft error */
-		warnx("found strange file: %s (%#o)", sbuf_data(path),
+		NOTICE("found strange file: %s (%#o)", p,
 		    st.st_mode & S_IFMT);
 		break;
 	}
@@ -234,6 +239,12 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
 			continue;
+		/* ignore all entries that start with a period */
+		if (de->d_name[0] == '.') {
+			NOTICE("ignoring dot file %s/[%lu]",
+			    sbuf_data(path), (unsigned long)de->d_ino);
+			continue;
+		}
 		if (tsdfx_process_dirent(path, dd, de) != 0)
 			break;
 	}

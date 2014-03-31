@@ -30,6 +30,7 @@
 #ifndef TSDFX_LOG_H_INCLUDED
 #define TSDFX_LOG_H_INCLUDED
 
+extern int tsdfx_quiet;
 extern int tsdfx_verbose;
 
 void tsdfx_log(const char *, int, const char *, const char *, ...);
@@ -39,6 +40,20 @@ void tsdfx_log(const char *, int, const char *, const char *, ...);
 		if (tsdfx_verbose)					\
 			tsdfx_log(__FILE__, __LINE__, __func__,		\
 			    __VA_ARGS__);				\
+	} while (0)
+
+#define NOTICE(...) \
+	do {								\
+		if (!tsdfx_quiet)					\
+			tsdfx_log(__FILE__, __LINE__, __func__,		\
+			    __VA_ARGS__);				\
+	} while (0)
+
+
+#define ERROR(...) \
+	do {								\
+		tsdfx_log(__FILE__, __LINE__, __func__,			\
+		    __VA_ARGS__);					\
 	} while (0)
 
 #endif

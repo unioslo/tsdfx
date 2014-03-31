@@ -42,6 +42,7 @@
 
 #include <tsd/strutil.h>
 
+#include "tsdfx_log.h"
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
 
@@ -108,8 +109,6 @@ map_delete(struct map *m)
 
 	if (m != NULL) {
 		tsdfx_scan_delete(m->task);
-		free(m->srcpath);
-		free(m->dstpath);
 		free(m);
 	}
 }
@@ -204,21 +203,26 @@ map_reload(const char *fn)
 	int i, j, res;
 
 	/* read the new map */
+	VERBOSE("loading %s", fn);
 	if (map_read(fn, &newmap, &newmap_sz, &newmap_len) != 0)
 		return (-1);
-	/* create new tasks */
+	/* XXX add code to check for duplicates */
+	/* first, create new tasks */
 	i = j = 0;
 	while (j < newmap_len) {
 		res = (i < map_len) ?
 		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : 1;
 		if (res == 0) {
-			/* same task, process later */
+			/* unchanged task */
+			VERBOSE("keeping %s", map[i]->srcpath);
 			++i, ++j;
 		} else if (res < 0) {
-			/* deleted task, process later */
+			/* deleted task */
+			VERBOSE("dropping %s", map[i]->srcpath);
 			++i;
 		} else if (res > 0) {
 			/* new task */
+			VERBOSE("adding %s", newmap[j]->srcpath);
 			newmap[j]->task =
 			    tsdfx_scan_new(newmap[j]->srcpath);
 			if (newmap[j]->task == NULL)
@@ -228,35 +232,35 @@ map_reload(const char *fn)
 			/* unreachable */
 		}
 	}
-	/* process deleted tasks */
+	/* copy unchanged tasks */
 	i = j = 0;
 	while (i < map_len) {
 		res = (j < newmap_len) ?
 		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : -1;
 		if (res == 0) {
-			/* same task */
+			/* unchanged task */
 			newmap[j]->task = map[i]->task;
 			map[i]->task = NULL;
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
-			tsdfx_scan_delete(map[i]->task);
-			map[i]->task = NULL;
 			++i;
 		} else if (res > 0) {
-			/* new task, already processed */
+			/* new task */
 			++j;
 		} else {
 			/* unreachable */
 		}
 	}
-	/* delete the old map */
+	/* delete the old map and any tasks that weren't copied over */
 	for (i = 0; i < map_len; ++i)
 		map_delete(map[i]);
 	free(map);
 	map = newmap;
 	map_sz = newmap_sz;
 	map_len = newmap_len;
+	for (i = 0; i < map_len; ++i)
+		VERBOSE("map: %s -> %s", map[i]->srcpath, map[i]->dstpath);
 	return (0);
 fail:
 	for (j = 0; i < newmap_len; ++j)

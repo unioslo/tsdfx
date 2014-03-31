@@ -41,20 +41,30 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <regex.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
+
+#if HAVE_BSD_UNISTD_H
+#include <bsd/unistd.h>
+#endif
 
 #include <tsd/ctype.h>
 #include <tsd/strutil.h>
 
 #include "tsdfx.h"
+#include "tsdfx_log.h"
 #include "tsdfx_scan.h"
 
 #define INITIAL_BUFFER_SIZE	(PATH_MAX * 2)
 #define MAXIMUM_BUFFER_SIZE	(PATH_MAX * 1024)
+
+/* XXX this needs to be configurable */
+#define SCAN_INTERVAL		5
 
 enum scan_task_state {
 	SCAN_TASK_INVALID,	/* really screwed */
@@ -72,6 +82,10 @@ struct scan_task {
 	/* what to scan */
 	char path[PATH_MAX];
 	struct stat st;
+
+	/* when to scan */
+	time_t lastran, nextrun;
+	int interval;
 
 	/* place in the task list */
 	int index;
@@ -95,6 +109,17 @@ static int scan_len;
 
 static inline void tsdfx_scan_invariant(const struct scan_task *);
 static inline int tsdfx_scan_find(const struct scan_task *);
+
+/*
+ * Regular expression used to validate the output from the scan task.  It
+ * must consist of zero or more lines, each representing a path.  Each
+ * path must start but not end with a slash, and each slash must be
+ * followed by a sequence of one or more characters from the POSIX
+ * Portable Filename Character Set, the first of which is not a period.
+ */
+#define SCAN_REGEX \
+	"^((/[0-9A-Za-z_-][0-9A-Za-z._-]*)+\n)*$"
+static regex_t scan_regex;
 
 /*
  * Debugging aid
@@ -159,6 +184,8 @@ tsdfx_scan_add(struct scan_task *task)
 	size_t sz;
 	int i;
 
+	VERBOSE("%s", task->path);
+
 	/* is it already on the list? */
 	if ((i = tsdfx_scan_find(task)) >= 0) {
 		/* refresh pollfd */
@@ -184,11 +211,12 @@ tsdfx_scan_add(struct scan_task *task)
 	}
 
 	/* append the task to the list */
-	// assert(scan_len + 1 <= scan_sz)
+	assert(scan_len + 1 <= (int)scan_sz);
 	scan_tasks[scan_len] = task;
 	if ((scan_pipes[scan_len].fd = task->pd) >= 0)
 		scan_pipes[scan_len].events = POLLIN;
 	task->index = scan_len++;
+	tsdfx_scan_invariant(task);
 	return (0);
 }
 
@@ -230,6 +258,7 @@ tsdfx_scan_remove(struct scan_task *task)
 {
 	int i;
 
+	VERBOSE("%s", task->path);
 	if ((i = tsdfx_scan_find(task)) < 0)
 		return (-1);
 	task->index = -1;
@@ -242,6 +271,8 @@ tsdfx_scan_remove(struct scan_task *task)
 	memset(scan_tasks + scan_len, 0, sizeof *scan_tasks);
 	memset(scan_pipes + scan_len, 0, sizeof *scan_pipes);
 	--scan_len;
+	for (; i < scan_len; ++i)
+		scan_tasks[i]->index = i;
 	return (0);
 }
 
@@ -254,6 +285,7 @@ tsdfx_scan_new(const char *path)
 	struct scan_task *task;
 	int serrno;
 
+	VERBOSE("%s", path);
 	if ((task = calloc(1, sizeof *task)) == NULL)
 		return (NULL);
 	task->pid = -1;
@@ -273,6 +305,7 @@ tsdfx_scan_new(const char *path)
 	if (tsdfx_scan_add(task) != 0)
 		goto fail;
 	task->state = SCAN_TASK_IDLE;
+	task->interval = SCAN_INTERVAL; /* XXX should be tunable */
 	return (task);
 fail:
 	serrno = errno;
@@ -289,6 +322,9 @@ int
 tsdfx_scan_start(struct scan_task *task)
 {
 	int pd[2];
+
+	VERBOSE("%s", task->path);
+	tsdfx_scan_invariant(task);
 
 	if (task->state == SCAN_TASK_RUNNING)
 		return (0);
@@ -312,6 +348,12 @@ tsdfx_scan_start(struct scan_task *task)
 
 	/* child */
 	if (task->pid == 0) {
+		VERBOSE("child process for %s", task->path);
+#if HAVE_SETPROCTITLE
+		/* set process title if possible */
+		setproctitle("scan %s", task->path);
+#endif
+
 		/* replace stdout with pipe and close read end */
 		close(pd[0]);
 		dup2(pd[1], STDOUT_FILENO);
@@ -322,12 +364,18 @@ tsdfx_scan_start(struct scan_task *task)
 #endif
 		setvbuf(stdout, NULL, _IOLBF, 0);
 
+		/* change into the target directory */
+		if (chdir(task->path) != 0) {
+			warn("%s", task->path);
+			_exit(1);
+		}
+
 		/* not root */
 		if (geteuid() != 0)
-			_exit(tsdfx_scanner(task->path));
+			_exit(tsdfx_scanner("."));
 
-		/* change into the target directory */
-		if (chdir(task->path) != 0 || chroot(task->path) != 0) {
+		/* chroot */
+		if (chroot(task->path) != 0) {
 			warn("%s", task->path);
 			_exit(1);
 		}
@@ -341,7 +389,7 @@ tsdfx_scan_start(struct scan_task *task)
 		setuid(task->st.st_uid);
 
 		/* run the scan task */
-		_exit(tsdfx_scanner("/"));
+		_exit(tsdfx_scanner("."));
 	}
 
 	/* parent */
@@ -369,6 +417,9 @@ tsdfx_scan_stop(struct scan_task *task)
 {
 	int i, ret, status;
 	int sig[] = { SIGCONT, SIGTERM, SIGKILL, -1 };
+
+	VERBOSE("%s", task->path);
+	tsdfx_scan_invariant(task);
 
 	/* check current state */
 	if (task->state != SCAN_TASK_RUNNING)
@@ -427,6 +478,8 @@ tsdfx_scan_reset(struct scan_task *task)
 {
 	struct stat st;
 
+	VERBOSE("%s", task->path);
+
 	if (task->state == SCAN_TASK_IDLE)
 		return (0);
 
@@ -463,6 +516,10 @@ tsdfx_scan_reset(struct scan_task *task)
 		    (long)st.st_gid, (long)task->st.st_gid);
 	task->st = st;
 	task->state = SCAN_TASK_IDLE;
+
+	/* reschedule */
+	task->nextrun = time(&task->lastran) + task->interval;
+
 	return (0);
 }
 
@@ -475,6 +532,8 @@ tsdfx_scan_delete(struct scan_task *task)
 
 	if (task == NULL)
 		return;
+	VERBOSE("%s", task->path);
+	tsdfx_scan_invariant(task);
 	if (task->pid != -1 || task->pd != -1)
 		tsdfx_scan_stop(task);
 	tsdfx_scan_remove(task);
@@ -491,7 +550,7 @@ tsdfx_scan_slurp(struct scan_task *task)
 	size_t bufsz;
 	ssize_t rlen;
 	char *buf, *p;
-	int bol, len;
+	int len;
 
 	p = task->buf + task->buflen;
 	len = 0;
@@ -527,31 +586,49 @@ tsdfx_scan_slurp(struct scan_task *task)
 	} while (rlen > 0);
 
 	/* validate */
-	bol = (p == task->buf || p[-1] == '\n');
-	for (; p < task->buf + task->buflen; ++p) {
-		if (*p == '\n') {
-			/* no empty lines, no trailing slashes */
-			if (bol || p[-1] == '/')
-				goto einval;
-			bol = 1;
-		} else if (*p == '/') {
-			/* no double slashes */
-			if (!bol && p[-1] == '/')
-				goto einval;
-			bol = 0;
-		} else {
-			/* always leading slash, only PFCS characters */
-			if (bol || !is_pfcs(*p))
-				goto einval;
-		}
-	}
-	/* end of transmission, check for LF */
-	if (len == 0 && !bol)
+	/*
+	 * XXX two problems here:
+	 *
+	 *  - We revalidate the entire buffer every time, which is
+         *    inefficient - n * (n - 1) / 2, or O(n²).
+	 *
+	 *  - We assume that we read one or more complete lines.  This
+         *    happens to be the case because a) the child's stdout is
+         *    line-buffered and b) a combination of implementation details
+         *    in stdio and the kernel which result in each line being
+         *    written (and read) atomically, but this assumption may not
+         *    hold on other platforms, and it may break if the child
+         *    writes a very long line.
+	 *
+	 * A simple (table-driven?) state machine would solve both issues.
+	 */
+	if (regexec(&scan_regex, task->buf, 0, NULL, 0) != 0) {
+		VERBOSE("invalid output from child %ld for %s",
+		    (long)task->pid, task->path);
 		goto einval;
+	}
+
 	return (len);
 einval:
 	errno = EINVAL;
 	return (-1);
+}
+
+/*
+ * Start any scheduled tasks
+ */
+void
+tsdfx_scan_sched(void)
+{
+	time_t now;
+	int i;
+
+	time(&now);
+	for (i = 0; i < scan_len; ++i)
+		if (now >= scan_tasks[i]->nextrun &&
+		    scan_tasks[i]->state == SCAN_TASK_IDLE)
+			if (tsdfx_scan_start(scan_tasks[i]) != 0)
+				warn("failed to start task");
 }
 
 /*
@@ -563,6 +640,7 @@ tsdfx_scan_iter(int timeout)
 	struct scan_task *task;
 	int i, ret;
 
+	/* wait for input */
 	if ((ret = poll(scan_pipes, scan_len, timeout)) <= 0)
 		return (ret);
 	for (i = 0; i < scan_len; ++i) {
@@ -573,45 +651,26 @@ tsdfx_scan_iter(int timeout)
 		if ((ret = tsdfx_scan_slurp(task)) < 0) {
 			if (tsdfx_scan_stop(task) == 0)
 				task->state = SCAN_TASK_FAILED;
+			/* XXX do something */
+			tsdfx_scan_reset(task);
 		} else if (ret == 0) {
 			if (tsdfx_scan_stop(task) == 0)
 				task->state = SCAN_TASK_FINISHED;
+			/* XXX do something */
+			tsdfx_scan_reset(task);
 		}
 	}
 	return (0);
 }
 
+/*
+ * Initialize the scanning subsystem
+ */
 int
-tsdfx_scan(const char *src, const char *dst)
+tsdfx_scan_init(void)
 {
-	struct scan_task *src_task, *dst_task;
-	int ret;
 
-	if ((src_task = tsdfx_scan_new(src)) == NULL)
-		err(1, "failed to create src task");
-	if (tsdfx_scan_start(src_task) != 0)
-		err(1, "failed to start src task");
-	if ((dst_task = tsdfx_scan_new(dst)) == NULL)
-		err(1, "failed to create dst task");
-	if (tsdfx_scan_start(dst_task) != 0)
-		err(1, "failed to start dst task");
-	printf("scanning...\n");
-	while (src_task->state == SCAN_TASK_RUNNING ||
-	    dst_task->state == SCAN_TASK_RUNNING) {
-		if ((ret = tsdfx_scan_iter(1000)) != 0)
-			break;
-	}
-	if (src_task->state == SCAN_TASK_FINISHED)
-		printf("[%s]\n%s", src_task->path, src_task->buf);
-	else
-		printf("[%s] failed\n", src_task->path);
-	if (dst_task->state == SCAN_TASK_FINISHED)
-		printf("[%s]\n%s", dst_task->path, dst_task->buf);
-	else
-		printf("[%s] failed\n", dst_task->path);
-	tsdfx_scan_reset(src_task);
-	tsdfx_scan_reset(dst_task);
-	tsdfx_scan_delete(src_task);
-	tsdfx_scan_delete(dst_task);
+	if (regcomp(&scan_regex, SCAN_REGEX, REG_EXTENDED|REG_NOSUB) != 0)
+		return (-1);
 	return (0);
 }

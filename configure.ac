@@ -29,6 +29,11 @@ AC_CHECK_HEADERS([endian.h sys/endian.h])
 AC_CHECK_FUNCS([strlcat strlcpy])
 AC_CHECK_FUNCS([closefrom])
 
+# setproctitle
+AC_CHECK_HEADERS([bsd/unistd.h])
+AC_SEARCH_LIBS([setproctitle], [bsd])
+AC_CHECK_FUNCS([setproctitle_init setproctitle])
+
 # options
 AC_ARG_ENABLE([debug],
     AC_HELP_STRING([--enable-debug], [turn debugging macros on (default is NO)]),

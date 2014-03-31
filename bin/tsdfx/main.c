@@ -36,7 +36,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#if HAVE_BSD_UNISTD_H
+#include <bsd/unistd.h>
+#endif
+
 #include "tsdfx.h"
+
+#if HAVE_SETPROCTITLE_INIT
+extern char **environ;
+#endif
 
 static void
 usage(void)
@@ -51,6 +59,13 @@ main(int argc, char *argv[])
 {
 	const char *mapfile;
 	int opt;
+
+#if HAVE_SETPROCTITLE_INIT
+	setproctitle_init(argc, argv, environ);
+#endif
+#if HAVE_SETPROCTITLE
+	setproctitle("master");
+#endif
 
 	mapfile = NULL;
 	while ((opt = getopt(argc, argv, "m:")) != -1)
@@ -73,6 +88,6 @@ main(int argc, char *argv[])
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);
 	// add daemonization etc.
-	tsdfx_run();
+	tsdfx_run(mapfile);
 	exit(0);
 }
