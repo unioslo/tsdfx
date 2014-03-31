@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/include
 sbin_PROGRAMS = tsdfx
 tsdfx_SOURCES =
 tsdfx_SOURCES += main.c

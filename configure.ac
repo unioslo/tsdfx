@@ -3,7 +3,7 @@ AC_INIT([TSD File eXchange], [0.99], [d.e.smorgrav@usit.uio.no], [tsdfx], [http:
 AC_CONFIG_SRCDIR([bin/tsdfx/tsdfx.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign])
-AM_CONFIG_HEADER([config.h])
+AM_CONFIG_HEADER([include/config.h])
 
 # compilers
 AC_LANG(C)
