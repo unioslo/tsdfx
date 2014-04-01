@@ -84,16 +84,16 @@ map_new(const char *fn, int n, const char *src, const char *dst)
 	struct map *m;
 
 	if ((m = calloc(1, sizeof *m)) == NULL) {
-		warn("calloc()");
+		ERROR("calloc()");
 		return (NULL);
 	}
 	if (verify_path(src, m->srcpath) != 0) {
-		warn("%s:%d: invalid source path", fn, n);
+		ERROR("%s:%d: invalid source path", fn, n);
 		free(m);
 		return (NULL);
 	}
 	if (verify_path(dst, m->dstpath) != 0) {
-		warn("%s:%d: invalid destination path", fn, n);
+		ERROR("%s:%d: invalid destination path", fn, n);
 		free(m);
 		return (NULL);
 	}
@@ -133,13 +133,13 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 {
 	FILE *f;
 	char **words;
-	int i, lno, nwords;
+	int i, j, lno, nwords;
 	struct map **m, **tm;
 	size_t sz;
 	int len;
 
 	if ((f = fopen(fn, "r")) == NULL) {
-		warn("%s", fn);
+		ERROR("%s", fn);
 		return (-1);
 	}
 	words = NULL;
@@ -151,8 +151,9 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	while ((words = tsd_readlinev(f, &lno, &nwords)) != NULL) {
 		if (nwords == 0)
 			continue;
+		/* expecting "srcpath => dstpath" */
 		if (nwords != 3 || strcmp(words[1], "=>") != 0) {
-			warnx("%s:%d: syntax error", fn, lno);
+			ERROR("%s:%d: syntax error", fn, lno);
 			goto fail;
 		}
 		if (len >= (int)sz) {
@@ -169,11 +170,27 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 		free(words);
 	}
 	if (ferror(f) || errno != 0) {
-		warn("%s", fn);
+		ERROR("%s", fn);
 		goto fail;
 	}
 	fclose(f);
-	qsort(m, len, sizeof *m, map_compare);
+	/* sort and deduplicate */
+	mergesort(m, len, sizeof *m, map_compare);
+	for (i = 0; i + 1 < len; ++i) {
+		for (j = i + 1; j < len; ++j) {
+			if (strcmp(m[i]->srcpath, m[j]->srcpath) != 0)
+				break;
+			map_delete(m[j]);
+			m[j] = NULL;
+		}
+		if (j > i + 1) {
+			WARNING("removing duplicate entries for %s",
+			    m[i]->srcpath);
+			memmove(m + i + 1, m + j, (len - j) * sizeof *m);
+			len -= j - (i + 1);
+		}
+	}
+	/* good, let's return this */
 	*map = m;
 	*map_sz = sz;
 	*map_len = len;
@@ -206,7 +223,6 @@ map_reload(const char *fn)
 	VERBOSE("loading %s", fn);
 	if (map_read(fn, &newmap, &newmap_sz, &newmap_len) != 0)
 		return (-1);
-	/* XXX add code to check for duplicates */
 	/* first, create new tasks */
 	i = j = 0;
 	while (j < newmap_len) {
