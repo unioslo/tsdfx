@@ -49,6 +49,11 @@ void tsdfx_log(const char *, int, const char *, const char *, ...);
 			    __VA_ARGS__);				\
 	} while (0)
 
+#define WARNING(...) \
+	do {								\
+		tsdfx_log(__FILE__, __LINE__, __func__,			\
+		    __VA_ARGS__);					\
+	} while (0)
 
 #define ERROR(...) \
 	do {								\
