@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014 Universitetet i Oslo
+ * Copyright (c) 2013-2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,15 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#ifndef COPYIST_H_INCLUDED
-#define COPYIST_H_INCLUDED
-
-struct copytask {
-	char srcfile[1024];
-	char dstfile[1024];
-	/* ... */
-};
-
-void tsdfx_copyist(struct copytask *);
+#ifndef TSDFX_COPY_H_INCLUDED
+#define TSDFX_COPY_H_INCLUDED
 
 #endif
