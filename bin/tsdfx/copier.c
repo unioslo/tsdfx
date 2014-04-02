@@ -71,6 +71,7 @@ struct copyfile {
 static struct copyfile *copyfile_open(const char *, int, int);
 static int copyfile_read(struct copyfile *);
 static int copyfile_compare(struct copyfile *, struct copyfile *);
+static int copyfile_comparestat(struct copyfile *, struct copyfile *);
 static void copyfile_copy(struct copyfile *, struct copyfile *);
 static void copyfile_copystat(struct copyfile *, struct copyfile *);
 static int copyfile_write(struct copyfile *);
@@ -119,7 +120,7 @@ copyfile_read(struct copyfile *cf)
 	return (0);
 }
 
-/* compare length and content */
+/* compare buffer length and content */
 static int
 copyfile_compare(struct copyfile *src, struct copyfile *dst)
 {
@@ -127,6 +128,18 @@ copyfile_compare(struct copyfile *src, struct copyfile *dst)
 	if (src->buflen != dst->buflen)
 		return (-1);
 	if (memcmp(src->buf, dst->buf, src->buflen) != 0)
+		return (-1);
+	return (0);
+}
+
+/* compare file size and times */
+static int
+copyfile_comparestat(struct copyfile *src, struct copyfile *dst)
+{
+
+	if (src->st.st_size != dst->st.st_size)
+		return (-1);
+	if (src->st.st_mtime != dst->st.st_mtime)
 		return (-1);
 	return (0);
 }
@@ -249,6 +262,14 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	if ((src = copyfile_open(srcfn, O_RDONLY, 0)) == NULL ||
 	    (dst = copyfile_open(dstfn, O_RDWR|O_CREAT, 0600)) == NULL)
 		goto fail;
+
+	/* compare size and times */
+	if (copyfile_comparestat(src, dst) == 0) {
+		VERBOSE("size and mtime match");
+		copyfile_close(src);
+		copyfile_close(dst);
+		return (0);
+	}
 
 	/* XXX truncating dst to the length of src if it is longer might
 	 * save a few cycles */
