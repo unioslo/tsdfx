@@ -42,10 +42,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#ifdef RUNNING_SHA
 #include <tsd/sha1.h>
-#endif
-
 #include <tsd/strutil.h>
 
 #include "tsdfx_log.h"
@@ -60,10 +57,8 @@ struct copyfile {
 	int		 fd;
 	int		 mode;
 	struct stat	 st;
-#ifdef RUNNING_SHA
 	sha1_ctx	 sha_ctx;
-	char		 digest[SHA1_DIGEST_LEN];
-#endif
+	uint8_t		 digest[SHA1_DIGEST_LEN];
 	off_t		 offset;
 	size_t		 bufsize, buflen;
 	char		 buf[];
@@ -95,10 +90,8 @@ copyfile_open(const char *fn, int mode, int perm)
 		goto fail;
 	if (fstat(cf->fd, &cf->st) != 0)
 		goto fail;
-#ifdef RUNNING_SHA
 	if ((cf->sha_ctx = sha1_init()) == NULL)
 		goto fail;
-#endif
 	return (cf);
 fail:
 	if (cf != NULL)
@@ -188,9 +181,7 @@ static int
 copyfile_advance(struct copyfile *cf)
 {
 
-#ifdef RUNNING_SHA
 	sha1_update(cf->sha_ctx, cf->buf, cf->buflen);
-#endif
 	cf->offset += cf->buflen;
 	if (fstat(cf->fd, &cf->st) != 0)
 		return (-1);
@@ -225,10 +216,8 @@ copyfile_finish(struct copyfile *cf)
 			return (-1);
 		}
 	}
-#ifdef RUNNING_SHA
 	sha1_final(cf->sha_ctx, cf->digest);
 	cf->sha_ctx = NULL;
-#endif
 	return (0);
 }
 
@@ -239,12 +228,26 @@ copyfile_close(struct copyfile *cf)
 
 	if (cf->fd >= 0)
 		close(cf->fd);
-#ifdef RUNNING_SHA
 	if (cf->sha_ctx != NULL)
 		sha1_discard(cf->sha_ctx);
-#endif
 	memset(cf, 0, sizeof *cf + cf->bufsize);
 	free(cf);
+}
+
+/* log a completed transfer */
+void
+tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
+{
+	char hex[SHA1_DIGEST_LEN * 2 + 1];
+	int i;
+
+	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
+		hex[i * 2] = "0123456789abcdef"[dst->digest[i] >> 4];
+		hex[i * 2 + 1] = "0123456789abcdef"[dst->digest[i] & 7];
+	}
+	hex[i * 2] = 0;
+	NOTICE("copied %s to %s len %zu bytes sha1 %s",
+	    src->name, dst->name, (size_t)dst->st.st_size, hex);
 }
 
 /* read from both files, compare and write if necessary */
@@ -287,6 +290,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 			if (copyfile_finish(src) != 0 ||
 			    copyfile_finish(dst) != 0)
 				goto fail;
+			tsdfx_log_complete(src, dst);
 			copyfile_close(src);
 			copyfile_close(dst);
 			return (0);
