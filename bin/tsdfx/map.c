@@ -44,7 +44,9 @@
 
 #include "tsdfx_log.h"
 #include "tsdfx_map.h"
+#include "tsdfx_task.h"
 #include "tsdfx_scan.h"
+#include "tsdfx_copy.h"
 
 struct map {
 	char srcpath[PATH_MAX];
@@ -212,7 +214,7 @@ fail:
  * Reload the map from the specified file.
  */
 int
-map_reload(const char *fn)
+tsdfx_map_reload(const char *fn)
 {
 	struct map **newmap;
 	size_t newmap_sz;
@@ -283,4 +285,36 @@ fail:
 		map_delete(newmap[j]);
 	free(newmap);
 	return (-1);
+}
+
+/*
+ * Check all our map entries to see if a scan task recently completed.  If
+ * so, set up and kick off compare / copy tasks.  Reschedule the completed
+ * scan tasks.
+ */
+int
+tsdfx_map_iter(void)
+{
+	int i;
+
+	for (i = 0; i < map_len; ++i) {
+		switch (tsdfx_scan_state(map[i]->task)) {
+		case TASK_FINISHED:
+			tsdfx_copy_wrap(map[i]->srcpath, map[i]->dstpath,
+			    tsdfx_scan_result(map[i]->task));
+			tsdfx_scan_reset(map[i]->task);
+			break;
+		case TASK_INVALID:
+			/* XXX try to reset at regular intervals */
+			break;
+		case TASK_DEAD:
+		case TASK_FAILED:
+			/* just restart it */
+			tsdfx_scan_reset(map[i]->task);
+			break;
+		default:
+			break;
+		}
+	}
+	return (0);
 }

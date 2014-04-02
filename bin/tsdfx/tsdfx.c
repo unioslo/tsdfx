@@ -34,8 +34,10 @@
 #include <err.h>
 #include <signal.h>
 
+#include "tsdfx_log.h"
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
+#include "tsdfx_copy.h"
 #include "tsdfx.h"
 
 static volatile sig_atomic_t sighup;
@@ -65,7 +67,7 @@ tsdfx_init(const char *mapfile)
 
 	if (tsdfx_scan_init() != 0)
 		return (-1);
-	if (map_reload(mapfile) != 0)
+	if (tsdfx_map_reload(mapfile) != 0)
 		return (-1);
 	return (0);
 }
@@ -83,8 +85,12 @@ tsdfx_run(const char *mapfile)
 		/* check for sighup */
 		if (sighup) {
 			sighup = 0;
-			if (map_reload(mapfile) != 0)
-				warn("failed to reload map file");
+			if (tsdfx_map_reload(mapfile) != 0)
+				WARNING("failed to reload map file");
 		}
+		/* check if any scan tasks are finished */
+		tsdfx_map_iter();
+		/* check how our copiers are coming along */
+		tsdfx_copy_iter();
 	}
 }

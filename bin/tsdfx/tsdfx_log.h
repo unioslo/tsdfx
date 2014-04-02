@@ -34,6 +34,7 @@ extern int tsdfx_quiet;
 extern int tsdfx_verbose;
 
 void tsdfx_log(const char *, int, const char *, const char *, ...);
+int tsdfx_log_init(void);
 
 #define VERBOSE(...) \
 	do {								\

@@ -32,6 +32,7 @@
 
 struct map;
 
-int map_reload(const char *);
+int tsdfx_map_reload(const char *);
+int tsdfx_map_iter(void);
 
 #endif

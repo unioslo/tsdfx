@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 #include <assert.h>
 #include <err.h>
@@ -58,6 +57,7 @@
 
 #include "tsdfx.h"
 #include "tsdfx_log.h"
+#include "tsdfx_task.h"
 #include "tsdfx_scan.h"
 
 #define INITIAL_BUFFER_SIZE	(PATH_MAX * 2)
@@ -65,18 +65,6 @@
 
 /* XXX this needs to be configurable */
 #define SCAN_INTERVAL		5
-
-enum scan_task_state {
-	SCAN_TASK_INVALID,	/* really screwed */
-	SCAN_TASK_IDLE,		/* ready to run */
-	SCAN_TASK_STARTING,	/* starting */
-	SCAN_TASK_RUNNING,	/* running */
-	SCAN_TASK_STOPPING,	/* stopping */
-	SCAN_TASK_STOPPED,	/* stopped */
-	SCAN_TASK_DEAD,		/* dead */
-	SCAN_TASK_FINISHED,	/* stopped and successful */
-	SCAN_TASK_FAILED,	/* stopped and something went wrong */
-};
 
 struct scan_task {
 	/* what to scan */
@@ -91,7 +79,7 @@ struct scan_task {
 	int index;
 
 	/* state */
-	enum scan_task_state state;
+	enum task_state state;
 
 	/* child process */
 	pid_t pid;
@@ -99,7 +87,8 @@ struct scan_task {
 
 	/* scanned files */
 	char *buf;
-	size_t buflen, bufsz;
+	size_t bufsz;
+	int buflen;
 };
 
 static struct scan_task **scan_tasks;
@@ -129,30 +118,30 @@ tsdfx_scan_invariant(const struct scan_task *task)
 {
 
 	switch (task->state) {
-	case SCAN_TASK_IDLE:
+	case TASK_IDLE:
 		assert(task->buflen == 0);
-	case SCAN_TASK_FAILED:
-	case SCAN_TASK_FINISHED:
+	case TASK_FAILED:
+	case TASK_FINISHED:
 		assert(task->index < 0 || tsdfx_scan_find(task) >= 0);
 		assert(task->pid == -1);
 		assert(task->pd == -1);
 		break;
-	case SCAN_TASK_RUNNING:
+	case TASK_RUNNING:
 		assert(tsdfx_scan_find(task) >= 0);
 		assert(task->pid > 0);
 		assert(task->pd >= 0);
 		break;
-	case SCAN_TASK_STARTING:
-	case SCAN_TASK_STOPPING:
+	case TASK_STARTING:
+	case TASK_STOPPING:
 		/* transitional states */
 		assert(tsdfx_scan_find(task) >= 0);
 		break;
-	case SCAN_TASK_STOPPED:
-	case SCAN_TASK_DEAD:
+	case TASK_STOPPED:
+	case TASK_DEAD:
 		assert(task->pid == -1);
 		assert(task->pd == -1);
 		break;
-	case SCAN_TASK_INVALID:
+	case TASK_INVALID:
 		/* unknown */
 		break;
 	default:
@@ -171,6 +160,28 @@ tsdfx_scan_find(const struct scan_task *task)
 	    scan_tasks[task->index] != task)
 		return (-1);
 	return (task->index);
+}
+
+/*
+ * Return the state of a scan task.
+ */
+enum task_state
+tsdfx_scan_state(const struct scan_task *task)
+{
+
+	return (task->state);
+}
+
+/*
+ * Return the result of the scan.
+ */
+const char *
+tsdfx_scan_result(const struct scan_task *task)
+{
+
+	if (task->state != TASK_FINISHED)
+		return (NULL);
+	return (task->buf);
 }
 
 /*
@@ -193,11 +204,11 @@ tsdfx_scan_add(struct scan_task *task)
 			scan_pipes[i].events = POLLIN;
 		else
 			scan_pipes[i].events = 0;
-		return (0);
+		return (i);
 	}
 
 	/* make room for it */
-	if ((size_t)scan_len >= scan_sz) {
+	while (scan_len >= (int)scan_sz) {
 		sz = scan_sz ? scan_sz * 2 : 16;
 		if ((tasks = realloc(scan_tasks, sz * sizeof *tasks)) == NULL)
 			return (-1);
@@ -217,7 +228,7 @@ tsdfx_scan_add(struct scan_task *task)
 		scan_pipes[scan_len].events = POLLIN;
 	task->index = scan_len++;
 	tsdfx_scan_invariant(task);
-	return (0);
+	return (task->index);
 }
 
 /*
@@ -283,28 +294,30 @@ struct scan_task *
 tsdfx_scan_new(const char *path)
 {
 	struct scan_task *task;
+	struct stat st;
 	int serrno;
 
 	VERBOSE("%s", path);
+	if (lstat(path, &st) != 0)
+		return (NULL);
+	if (!S_ISDIR(st.st_mode)) {
+		errno = ENOTDIR;
+		return (NULL);
+	}
 	if ((task = calloc(1, sizeof *task)) == NULL)
 		return (NULL);
+	task->st = st;
 	task->pid = -1;
 	task->pd = -1;
 	if (realpath(path, task->path) == NULL)
 		goto fail;
-	if (lstat(path, &task->st) != 0)
-		goto fail;
-	if (!S_ISDIR(task->st.st_mode)) {
-		errno = ENOTDIR;
-		goto fail;
-	}
 	task->bufsz = INITIAL_BUFFER_SIZE;
 	task->buflen = 0;
 	if ((task->buf = malloc(task->bufsz)) == NULL)
 		goto fail;
-	if (tsdfx_scan_add(task) != 0)
+	if (tsdfx_scan_add(task) < 0)
 		goto fail;
-	task->state = SCAN_TASK_IDLE;
+	task->state = TASK_IDLE;
 	task->interval = SCAN_INTERVAL; /* XXX should be tunable */
 	return (task);
 fail:
@@ -326,11 +339,11 @@ tsdfx_scan_start(struct scan_task *task)
 	VERBOSE("%s", task->path);
 	tsdfx_scan_invariant(task);
 
-	if (task->state == SCAN_TASK_RUNNING)
+	if (task->state == TASK_RUNNING)
 		return (0);
-	if (task->state != SCAN_TASK_IDLE)
+	if (task->state != TASK_IDLE)
 		return (-1);
-	task->state = SCAN_TASK_STARTING;
+	task->state = TASK_STARTING;
 
 	/* open the pipe and register the task */
 	if (pipe(pd) != 0)
@@ -372,7 +385,7 @@ tsdfx_scan_start(struct scan_task *task)
 
 		/* not root */
 		if (geteuid() != 0)
-			_exit(tsdfx_scanner("."));
+			_exit(!!tsdfx_scanner("."));
 
 		/* chroot */
 		if (chroot(task->path) != 0) {
@@ -389,19 +402,19 @@ tsdfx_scan_start(struct scan_task *task)
 		setuid(task->st.st_uid);
 
 		/* run the scan task */
-		_exit(tsdfx_scanner("."));
+		_exit(!!tsdfx_scanner("."));
 	}
 
 	/* parent */
 	/* close the write end of the pipe */
 	close(pd[1]);
-	task->state = SCAN_TASK_RUNNING;
+	task->state = TASK_RUNNING;
 	return (0);
 fail:
 	close(pd[1]);
 	close(pd[0]);
 	task->pd = -1;
-	task->state = SCAN_TASK_DEAD;
+	task->state = TASK_DEAD;
 	return (-1);
 }
 
@@ -415,16 +428,16 @@ fail:
 int
 tsdfx_scan_stop(struct scan_task *task)
 {
-	int i, ret, status;
 	int sig[] = { SIGCONT, SIGTERM, SIGKILL, -1 };
+	int i;
 
 	VERBOSE("%s", task->path);
 	tsdfx_scan_invariant(task);
 
 	/* check current state */
-	if (task->state != SCAN_TASK_RUNNING)
+	if (task->state != TASK_RUNNING)
 		return (-1);
-	task->state = SCAN_TASK_STOPPING;
+	task->state = TASK_STOPPING;
 
 	/* close the pipe */
 	tsdfx_scan_mute(task);
@@ -433,40 +446,26 @@ tsdfx_scan_stop(struct scan_task *task)
 
 	/* reap the child */
 	for (i = 0; sig[i] >= 0; ++i) {
-		ret = waitpid(task->pid, &status, WNOHANG);
-		if (ret < 0) {
-			/* already reaped? */
-			warn("waitpid(%d)", (int)task->pid);
-			task->state = SCAN_TASK_DEAD;
+		tsdfx_task_poll(task->pid, &task->state);
+		if (task->state != TASK_STOPPING)
 			break;
-		} else if (ret == task->pid) {
-			/* good */
-			if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-				task->state = SCAN_TASK_FAILED;
-			break;
-		} else if (ret == 0) {
-			/* not yet; kill, wait 10 ms and retry */
-			if (sig[i])
-				kill(task->pid, sig[i]);
-			kill(task->pid, SIGCONT);
-			usleep(10000);
-		} else {
-			/* wtf? */
-			warnx("waitpid(%d) returned %d", (int)task->pid, ret);
-		}
+		/* not dead yet; kill, wait 10 ms and retry */
+		if (sig[i])
+			kill(task->pid, sig[i]);
+		kill(task->pid, SIGCONT);
+		usleep(10000);
 	}
 
 	/* either done or gave up */
 	if (sig[i] < 0) {
 		warnx("gave up waiting for child %d", (int)task->pid);
-		task->state = SCAN_TASK_DEAD;
+		task->state = TASK_DEAD;
 	}
 
 	/* in summary... */
 	task->pid = -1;
-	if (task->state != SCAN_TASK_STOPPING)
+	if (task->state != TASK_STOPPED)
 		return (-1);
-	task->state = SCAN_TASK_STOPPED;
 	return (0);
 }
 
@@ -480,7 +479,7 @@ tsdfx_scan_reset(struct scan_task *task)
 
 	VERBOSE("%s", task->path);
 
-	if (task->state == SCAN_TASK_IDLE)
+	if (task->state == TASK_IDLE)
 		return (0);
 
 	/* mute */
@@ -488,7 +487,7 @@ tsdfx_scan_reset(struct scan_task *task)
 		return (-1);
 
 	/* stop the task */
-	if (task->state == SCAN_TASK_RUNNING)
+	if (task->state == TASK_RUNNING)
 		(void)tsdfx_scan_stop(task);
 
 	/* clear the buffer */
@@ -498,14 +497,14 @@ tsdfx_scan_reset(struct scan_task *task)
 	/* check that it's still there */
 	if (lstat(task->path, &st) != 0) {
 		warnx("%s has disappeared", task->path);
-		task->state = SCAN_TASK_INVALID;
+		task->state = TASK_INVALID;
 		return (-1);
 	}
 
 	/* re-stat and check for suspicious changes */
 	if (!S_ISDIR(st.st_mode)) {
 		warnx("%s is no longer a directory", task->path);
-		task->state = SCAN_TASK_INVALID;
+		task->state = TASK_INVALID;
 		return (-1);
 	}
 	if (st.st_uid != task->st.st_uid)
@@ -515,7 +514,7 @@ tsdfx_scan_reset(struct scan_task *task)
 		warnx("%s group changed from %ld to %ld", task->path,
 		    (long)st.st_gid, (long)task->st.st_gid);
 	task->st = st;
-	task->state = SCAN_TASK_IDLE;
+	task->state = TASK_IDLE;
 
 	/* reschedule */
 	task->nextrun = time(&task->lastran) + task->interval;
@@ -556,7 +555,7 @@ tsdfx_scan_slurp(struct scan_task *task)
 	len = 0;
 	do {
 		/* make sure we have room for at least one more character */
-		if (task->buflen + 2 >= task->bufsz) {
+		if (task->buflen + 2 >= (int)task->bufsz) {
 			bufsz = task->bufsz * 2;
 			if (bufsz > MAXIMUM_BUFFER_SIZE)
 				bufsz = MAXIMUM_BUFFER_SIZE;
@@ -626,7 +625,7 @@ tsdfx_scan_sched(void)
 	time(&now);
 	for (i = 0; i < scan_len; ++i)
 		if (now >= scan_tasks[i]->nextrun &&
-		    scan_tasks[i]->state == SCAN_TASK_IDLE)
+		    scan_tasks[i]->state == TASK_IDLE)
 			if (tsdfx_scan_start(scan_tasks[i]) != 0)
 				warn("failed to start task");
 }
@@ -650,14 +649,10 @@ tsdfx_scan_iter(int timeout)
 		tsdfx_scan_invariant(task);
 		if ((ret = tsdfx_scan_slurp(task)) < 0) {
 			if (tsdfx_scan_stop(task) == 0)
-				task->state = SCAN_TASK_FAILED;
-			/* XXX do something */
-			tsdfx_scan_reset(task);
+				task->state = TASK_FAILED;
 		} else if (ret == 0) {
 			if (tsdfx_scan_stop(task) == 0)
-				task->state = SCAN_TASK_FINISHED;
-			/* XXX do something */
-			tsdfx_scan_reset(task);
+				task->state = TASK_FINISHED;
 		}
 	}
 	return (0);

@@ -30,4 +30,21 @@
 #ifndef TSDFX_COPY_H_INCLUDED
 #define TSDFX_COPY_H_INCLUDED
 
+struct copy_task;
+
+int tsdfx_copy_find(int, const char *, const char *);
+int tsdfx_copy_add(struct copy_task *);
+int tsdfx_copy_remove(struct copy_task *);
+struct copy_task *tsdfx_copy_new(const char *, const char *);
+void tsdfx_copy_delete(struct copy_task *);
+int tsdfx_copy_start(struct copy_task *);
+int tsdfx_copy_poll(struct copy_task *);
+int tsdfx_copy_stop(struct copy_task *);
+int tsdfx_copy_iter(void);
+int tsdfx_copy_init(void);
+
+int tsdfx_copy_wrap(const char *, const char *, const char *);
+
+int tsdfx_copier(const char *, const char *);
+
 #endif

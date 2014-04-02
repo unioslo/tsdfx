@@ -51,3 +51,11 @@ tsdfx_log(const char *file, int line, const char *func, const char *fmt, ...)
 	va_end(ap);
 	fprintf(stderr, "\n");
 }
+
+int
+tsdfx_log_init(void)
+{
+
+	setvbuf(stderr, NULL, _IOLBF, 0);
+	return (0);
+}

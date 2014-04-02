@@ -47,6 +47,10 @@
 
 #include <tsd/strutil.h>
 
+#include "tsdfx_log.h"
+
+static mode_t mumask;
+
 /* XXX make this a configuration parameter */
 #define BLOCKSIZE	1024576
 
@@ -54,7 +58,7 @@ struct copyfile {
 	char		 name[1024];
 	int		 fd;
 	int		 mode;
-	struct stat	 sb;
+	struct stat	 st;
 #ifdef RUNNING_SHA
 	sha1_ctx	 sha_ctx;
 	char		 digest[SHA1_DIGEST_LEN];
@@ -68,8 +72,9 @@ static struct copyfile *copyfile_open(const char *, int, int);
 static int copyfile_read(struct copyfile *);
 static int copyfile_compare(struct copyfile *, struct copyfile *);
 static void copyfile_copy(struct copyfile *, struct copyfile *);
+static void copyfile_copystat(struct copyfile *, struct copyfile *);
 static int copyfile_write(struct copyfile *);
-static void copyfile_advance(struct copyfile *);
+static int copyfile_advance(struct copyfile *);
 static int copyfile_finish(struct copyfile *);
 static void copyfile_close(struct copyfile *);
 
@@ -86,7 +91,7 @@ copyfile_open(const char *fn, int mode, int perm)
 	cf->bufsize = BLOCKSIZE;
 	if ((cf->fd = open(fn, mode, perm)) < 0)
 		goto fail;
-	if (fstat(cf->fd, &cf->sb) != 0)
+	if (fstat(cf->fd, &cf->st) != 0)
 		goto fail;
 #ifdef RUNNING_SHA
 	if ((cf->sha_ctx = sha1_init()) == NULL)
@@ -137,6 +142,16 @@ copyfile_copy(struct copyfile *src, struct copyfile *dst)
 		memset(dst->buf + dst->buflen, 0, dst->bufsize - dst->buflen);
 }
 
+/* copy mode + times from one state structure to another */
+static void
+copyfile_copystat(struct copyfile *src, struct copyfile *dst)
+{
+
+	dst->st.st_mode = src->st.st_mode;
+	dst->st.st_atim = src->st.st_atim;
+	dst->st.st_mtim = src->st.st_mtim;
+}
+
 /* write a block at the previous offset */
 static int
 copyfile_write(struct copyfile *cf)
@@ -155,7 +170,7 @@ copyfile_write(struct copyfile *cf)
 }
 
 /* update the offset and running digest */
-static void
+static int
 copyfile_advance(struct copyfile *cf)
 {
 
@@ -163,6 +178,9 @@ copyfile_advance(struct copyfile *cf)
 	sha1_update(cf->sha_ctx, cf->buf, cf->buflen);
 #endif
 	cf->offset += cf->buflen;
+	if (fstat(cf->fd, &cf->st) != 0)
+		return (-1);
+	return (0);
 }
 
 
@@ -170,10 +188,28 @@ copyfile_advance(struct copyfile *cf)
 static int
 copyfile_finish(struct copyfile *cf)
 {
+	struct timeval times[2];
+	int mode;
 
-	if ((cf->mode & O_RDWR) && ftruncate(cf->fd, cf->offset) != 0) {
-		warn("%s: ftruncate()", cf->name);
-		return (-1);
+	if (cf->mode & O_RDWR) {
+		if (ftruncate(cf->fd, cf->offset) != 0) {
+			warn("%s: ftruncate()", cf->name);
+			return (-1);
+		}
+		mode = (cf->st.st_mode & 0777) | 0600; // force u+rw
+		mode &= ~mumask; // apply umask
+		if (fchmod(cf->fd, mode) != 0) {
+			warn("%s: fchmod(%04o)", cf->name, mode);
+			return (-1);
+		}
+		times[0].tv_sec = cf->st.st_atim.tv_sec;
+		times[0].tv_usec = cf->st.st_atim.tv_nsec / 1000;
+		times[1].tv_sec = cf->st.st_mtim.tv_sec;
+		times[1].tv_usec = cf->st.st_mtim.tv_nsec / 1000;
+		if (futimes(cf->fd, times) != 0) {
+			warn("%s: futimes()", cf->name);
+			return (-1);
+		}
 	}
 #ifdef RUNNING_SHA
 	sha1_final(cf->sha_ctx, cf->digest);
@@ -199,9 +235,14 @@ copyfile_close(struct copyfile *cf)
 
 /* read from both files, compare and write if necessary */
 int
-tsdfx_copy(const char *srcfn, const char *dstfn)
+tsdfx_copier(const char *srcfn, const char *dstfn)
 {
 	struct copyfile *src, *dst;
+
+	VERBOSE("%s to %s", srcfn, dstfn);
+
+	/* what's my umask? */
+	umask(mumask = umask(0));
 
 	/* open source and destination files */
 	src = dst = NULL;
@@ -219,6 +260,8 @@ tsdfx_copy(const char *srcfn, const char *dstfn)
 			goto fail;
 		if (src->buflen == 0) {
 			/* end of source file */
+			/* XXX add code to wait for additional data */
+			copyfile_copystat(src, dst);
 			if (copyfile_finish(src) != 0 ||
 			    copyfile_finish(dst) != 0)
 				goto fail;
@@ -232,11 +275,13 @@ tsdfx_copy(const char *srcfn, const char *dstfn)
 			if (copyfile_write(dst) != 0)
 				goto fail;
 		}
-		copyfile_advance(src);
-		copyfile_advance(dst);
+		if (copyfile_advance(src) != 0 ||
+		    copyfile_advance(dst) != 0)
+			goto fail;
 	}
 	/* not reached */
 fail:
+	ERROR("failed to copy %s to %s", srcfn, dstfn);
 	if (src != NULL)
 		copyfile_close(src);
 	if (dst != NULL)

@@ -41,6 +41,7 @@
 #endif
 
 #include "tsdfx.h"
+#include "tsdfx_log.h"
 
 #if HAVE_SETPROCTITLE_INIT
 extern char **environ;
@@ -85,6 +86,8 @@ main(int argc, char *argv[])
 	if (mapfile == NULL)
 		usage();
 
+	if (tsdfx_log_init() != 0)
+		exit(1);
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);
 	// add daemonization etc.

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014 Dag-Erling Smørgrav
+ * Copyright (c) 2014 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,14 +25,15 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $Id$
  */
 
 #ifndef TSDFX_SCAN_H_INCLUDED
 #define TSDFX_SCAN_H_INCLUDED
 
 struct scan_task;
+
+enum task_state tsdfx_scan_state(const struct scan_task *);
+const char *tsdfx_scan_result(const struct scan_task *);
 
 int tsdfx_scan_add(struct scan_task *);
 int tsdfx_scan_mute(const struct scan_task *);
