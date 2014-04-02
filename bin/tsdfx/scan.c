@@ -64,7 +64,7 @@
 #define MAXIMUM_BUFFER_SIZE	(PATH_MAX * 1024)
 
 /* XXX this needs to be configurable */
-#define SCAN_INTERVAL		5
+#define SCAN_INTERVAL		60
 
 struct scan_task {
 	/* what to scan */
