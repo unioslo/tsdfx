@@ -1,0 +1,16 @@
+- Create directories
+
+- Move size and time comparison out of the copier to avoid needlessly
+  fork()ing a child process
+
+- Add configuration file (separate from map file)
+
+- Add configuration knobs for the scan frequency, both global and
+  per-mapping
+
+- Add support for include directive to include individual files or
+  entire directories into both the configuration and the map
+
+- Move file copying code into unprivileged and chrooted child
+
+- Merge common subsets of the scan and copy child handling code
