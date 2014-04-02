@@ -30,7 +30,7 @@ AC_CHECK_FUNCS([strlcat strlcpy])
 AC_CHECK_FUNCS([closefrom])
 
 # setproctitle
-AC_CHECK_HEADERS([bsd/unistd.h])
+AC_CHECK_HEADERS([bsd/stdlib.h bsd/unistd.h])
 AC_SEARCH_LIBS([setproctitle], [bsd])
 AC_CHECK_FUNCS([setproctitle_init setproctitle])
 

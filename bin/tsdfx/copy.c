@@ -44,6 +44,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#if HAVE_BSD_UNISTD_H
+#include <bsd/unistd.h>
+#endif
+
 #include <tsd/strutil.h>
 
 #include "tsdfx.h"

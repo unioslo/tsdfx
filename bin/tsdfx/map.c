@@ -40,6 +40,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if HAVE_BSD_STDLIB_H
+#include <bsd/stdlib.h>
+#endif
+
 #include <tsd/strutil.h>
 
 #include "tsdfx_log.h"
