@@ -33,19 +33,26 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "tsdfx_log.h"
 
 int tsdfx_quiet = 0;
-int tsdfx_verbose = 1;
+int tsdfx_verbose = 0;
 
 void
 tsdfx_log(const char *file, int line, const char *func, const char *fmt, ...)
 {
+	char timestr[32];
+	time_t now;
 	va_list ap;
 
-	fprintf(stderr, "[%d] %s:%d %s() ", (int)getpid(), file, line, func);
+	time(&now);
+	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
+	    gmtime(&now));
+	fprintf(stderr, "%s [%d] %s:%d %s() ",
+	    timestr, (int)getpid(), file, line, func);
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
