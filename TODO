@@ -1,5 +1,10 @@
 - Create directories
 
+- Propagate file ownership (destination file should be created by the
+  uid / gid of the source file) and log it after the transfer
+
+- Move file copying code into unprivileged and chrooted child
+
 - Move size and time comparison out of the copier to avoid needlessly
   fork()ing a child process
 
@@ -10,7 +15,5 @@
 
 - Add support for include directive to include individual files or
   entire directories into both the configuration and the map
-
-- Move file copying code into unprivileged and chrooted child
 
 - Merge common subsets of the scan and copy child handling code
