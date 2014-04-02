@@ -159,6 +159,8 @@ tsdfx_copy_new(const char *srcpath, const char *dstpath)
 	int serrno;
 
 	VERBOSE("%s -> %s", srcpath, dstpath);
+	if (lstat(srcpath, &st) == -1)
+		return (NULL);
 	if ((task = calloc(1, sizeof *task)) == NULL)
 		return (NULL);
 	task->uid = st.st_uid;
@@ -239,12 +241,10 @@ tsdfx_copy_start(struct copy_task *task)
 		/* XXX hard error? */
 		setgid(task->gid);
 		setuid(task->uid);
-#if 0
 		if (geteuid() == 0)
 			WARNING("copying %s with uid 0", task->srcpath);
 		if (getegid() == 0)
 			WARNING("copying %s with gid 0", task->srcpath);
-#endif
 
 		/* set safe umask */
 		umask(007);
