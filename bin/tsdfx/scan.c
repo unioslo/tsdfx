@@ -394,10 +394,12 @@ tsdfx_scan_start(struct scan_task *task)
 		}
 
 		/* drop privileges */
+#if 0
 		if (task->st.st_uid == 0)
 			warnx("scanning %s with uid 0", task->path);
 		if (task->st.st_gid == 0)
 			warnx("scanning %s with gid 0", task->path);
+#endif
 		setgid(task->st.st_gid);
 		setuid(task->st.st_uid);
 
