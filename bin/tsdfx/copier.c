@@ -276,6 +276,11 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		return (0);
 	}
 
+	/* resumed? */
+	if (dst->st.st_size > 0)
+		NOTICE("resuming %s at %zu bytes", dst->name,
+		    (size_t)dst->st.st_size);
+
 	/* XXX truncating dst to the length of src if it is longer might
 	 * save a few cycles */
 
