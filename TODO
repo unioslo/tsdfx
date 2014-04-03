@@ -1,7 +1,8 @@
-- Create directories
+- getpwuid() + setgroups() to fix export permissions
 
-- Propagate file ownership (destination file should be created by the
-  uid / gid of the source file) and log it after the transfer
+- Log ownership of each file after the transfer
+
+- Create directories
 
 - Move file copying code into unprivileged and chrooted child
 
