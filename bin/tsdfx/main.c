@@ -69,10 +69,13 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "m:")) != -1)
+	while ((opt = getopt(argc, argv, "m:v")) != -1)
 		switch (opt) {
 		case 'm':
 			mapfile = optarg;
+			break;
+		case 'v':
+			++tsdfx_verbose;
 			break;
 		default:
 			usage();
