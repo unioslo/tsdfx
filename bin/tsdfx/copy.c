@@ -76,6 +76,10 @@ struct copy_task {
 static struct copy_task **copy_tasks;
 static size_t copy_sz;
 static int copy_len;
+static int copy_running;
+
+/* max concurrent copy tasks */
+int tsdfx_copy_max_tasks = 8;
 
 /*
  * Return the index of the first copy task that matches the specified
@@ -254,6 +258,7 @@ tsdfx_copy_start(struct copy_task *task)
 	}
 
 	/* parent */
+	++copy_running;
 	task->state = TASK_RUNNING;
 	return (0);
 fail:
@@ -290,6 +295,7 @@ tsdfx_copy_stop(struct copy_task *task)
 	if (task->state != TASK_RUNNING)
 		return (-1);
 	task->state = TASK_STOPPING;
+	--copy_running;
 
 	/* reap the child */
 	for (i = 0; sig[i] >= 0; ++i) {
@@ -353,6 +359,12 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 			/* too long, XXX should warn */
 			continue;
 		}
+		/* XXX copier doesn't create directories, so skip */
+		if (memchr(p + 1, '/', q - p)) {
+			VERBOSE("ignoring %.*s", (int)(q - p), p);
+			continue;
+		}
+		/* XXX end */
 		memcpy(sf, p, q - p);
 		sf[q - p] = '\0';
 		memcpy(df, p, q - p);
@@ -372,7 +384,8 @@ tsdfx_copy_iter(void)
 	int i;
 
 	for (i = 0; i < copy_len; ++i) {
-		if (copy_tasks[i]->state == TASK_IDLE)
+		if (copy_tasks[i]->state == TASK_IDLE &&
+		    copy_running < tsdfx_copy_max_tasks)
 			tsdfx_copy_start(copy_tasks[i]);
 		tsdfx_copy_poll(copy_tasks[i]);
 		if (copy_tasks[i]->state != TASK_RUNNING)
