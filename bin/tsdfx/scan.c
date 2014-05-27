@@ -95,6 +95,10 @@ static struct scan_task **scan_tasks;
 static struct pollfd *scan_pipes;
 static size_t scan_sz;
 static int scan_len;
+static int scan_running;
+
+/* max concurrent scan tasks */
+int tsdfx_scan_max_tasks = 8;
 
 static inline void tsdfx_scan_invariant(const struct scan_task *);
 static inline int tsdfx_scan_find(const struct scan_task *);
@@ -410,6 +414,7 @@ tsdfx_scan_start(struct scan_task *task)
 	/* parent */
 	/* close the write end of the pipe */
 	close(pd[1]);
+	++scan_running;
 	task->state = TASK_RUNNING;
 	return (0);
 fail:
@@ -440,6 +445,7 @@ tsdfx_scan_stop(struct scan_task *task)
 	if (task->state != TASK_RUNNING)
 		return (-1);
 	task->state = TASK_STOPPING;
+	--scan_running;
 
 	/* close the pipe */
 	tsdfx_scan_mute(task);
@@ -627,7 +633,8 @@ tsdfx_scan_sched(void)
 	time(&now);
 	for (i = 0; i < scan_len; ++i)
 		if (now >= scan_tasks[i]->nextrun &&
-		    scan_tasks[i]->state == TASK_IDLE)
+		    scan_tasks[i]->state == TASK_IDLE &&
+		    scan_running < tsdfx_scan_max_tasks)
 			if (tsdfx_scan_start(scan_tasks[i]) != 0)
 				warn("failed to start task");
 }
