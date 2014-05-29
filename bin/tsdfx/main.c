@@ -99,6 +99,7 @@ main(int argc, char *argv[])
 	 */
 	if (chdir("/var/empty") != 0 && chdir("/") != 0) {
 		ERROR("/: chdir(): %s", strerror(errno));
+		exit(1);
 	}
 
 	if (tsdfx_log_init() != 0)
