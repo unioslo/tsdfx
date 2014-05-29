@@ -57,6 +57,7 @@ struct copyfile {
 	int		 fd;
 	int		 mode;
 	struct stat	 st;
+	struct timeval	 tvo, tvf, tve;
 	sha1_ctx	 sha_ctx;
 	uint8_t		 digest[SHA1_DIGEST_LEN];
 	off_t		 offset;
@@ -91,6 +92,8 @@ copyfile_open(const char *fn, int mode, int perm)
 	if (fstat(cf->fd, &cf->st) != 0)
 		goto fail;
 	if ((cf->sha_ctx = sha1_init()) == NULL)
+		goto fail;
+	if ((gettimeofday(&cf->tvo, NULL)) != 0)
 		goto fail;
 	return (cf);
 fail:
@@ -196,6 +199,8 @@ copyfile_finish(struct copyfile *cf)
 	struct timeval times[2];
 	int mode;
 
+	gettimeofday(&cf->tvf, NULL);
+	timersub(&cf->tvf, &cf->tvo, &cf->tve);
 	if (cf->mode & O_RDWR) {
 		if (ftruncate(cf->fd, cf->offset) != 0) {
 			warn("%s: ftruncate()", cf->name);
@@ -246,8 +251,10 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 		hex[i * 2 + 1] = "0123456789abcdef"[dst->digest[i] & 7];
 	}
 	hex[i * 2] = 0;
-	NOTICE("copied %s to %s len %zu bytes sha1 %s",
-	    src->name, dst->name, (size_t)dst->st.st_size, hex);
+	NOTICE("copied %s to %s len %zu bytes sha1 %s in %lu.%03lu s",
+	    src->name, dst->name, (size_t)dst->st.st_size, hex,
+	    (unsigned long)dst->tve.tv_sec,
+	    (unsigned long)dst->tve.tv_usec / 1000);
 }
 
 /* read from both files, compare and write if necessary */
@@ -295,6 +302,10 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 			if (copyfile_finish(src) != 0 ||
 			    copyfile_finish(dst) != 0)
 				goto fail;
+			if (memcmp(src->digest, dst->digest, SHA1_DIGEST_LEN) != 0) {
+				ERROR("digest differs after copy");
+				goto fail;
+			}
 			tsdfx_log_complete(src, dst);
 			copyfile_close(src);
 			copyfile_close(dst);
