@@ -109,7 +109,7 @@ copyfile_read(struct copyfile *cf)
 	ssize_t rlen;
 
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
-		warn("%s: read()", cf->name);
+		ERROR("%s: read()", cf->name);
 		return (-1);
 	}
 	if ((cf->buflen = (size_t)rlen) < cf->bufsize)
@@ -169,11 +169,11 @@ copyfile_write(struct copyfile *cf)
 	ssize_t wlen;
 
 	if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
-		warn("%s: lseek()", cf->name);
+		ERROR("%s: lseek()", cf->name);
 		return (-1);
 	}
 	if ((wlen = write(cf->fd, cf->buf, cf->buflen)) != (ssize_t)cf->buflen) {
-		warn("%s: write()", cf->name);
+		ERROR("%s: write()", cf->name);
 		return (-1);
 	}
 	return (0);
@@ -203,13 +203,13 @@ copyfile_finish(struct copyfile *cf)
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
 	if (cf->mode & O_RDWR) {
 		if (ftruncate(cf->fd, cf->offset) != 0) {
-			warn("%s: ftruncate()", cf->name);
+			ERROR("%s: ftruncate()", cf->name);
 			return (-1);
 		}
 		mode = (cf->st.st_mode & 0777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
 		if (fchmod(cf->fd, mode) != 0) {
-			warn("%s: fchmod(%04o)", cf->name, mode);
+			ERROR("%s: fchmod(%04o)", cf->name, mode);
 			return (-1);
 		}
 		times[0].tv_sec = cf->st.st_atim.tv_sec;
@@ -217,7 +217,7 @@ copyfile_finish(struct copyfile *cf)
 		times[1].tv_sec = cf->st.st_mtim.tv_sec;
 		times[1].tv_usec = cf->st.st_mtim.tv_nsec / 1000;
 		if (futimes(cf->fd, times) != 0) {
-			warn("%s: futimes()", cf->name);
+			ERROR("%s: futimes()", cf->name);
 			return (-1);
 		}
 	}

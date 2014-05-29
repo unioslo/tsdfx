@@ -322,7 +322,7 @@ tsdfx_copy_stop(struct copy_task *task)
 
 	/* either done or gave up */
 	if (sig[i] < 0) {
-		warnx("gave up waiting for child %d", (int)task->pid);
+		WARNING("gave up waiting for child %d", (int)task->pid);
 		task->state = TASK_DEAD;
 	}
 
