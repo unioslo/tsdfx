@@ -23,11 +23,12 @@ LT_INIT()
 AC_PROG_INSTALL
 
 # headers
-AC_CHECK_HEADERS([endian.h sys/endian.h])
+AC_CHECK_HEADERS([endian.h sys/endian.h sys/statvfs.h])
 
 # functions
 AC_CHECK_FUNCS([strlcat strlcpy])
 AC_CHECK_FUNCS([closefrom])
+AC_CHECK_FUNCS([statvfs])
 
 # setproctitle
 AC_CHECK_HEADERS([bsd/stdlib.h bsd/unistd.h])

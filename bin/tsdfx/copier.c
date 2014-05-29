@@ -35,7 +35,14 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#if HAVE_SYS_STATVFS_H
+#include <sys/statvfs.h>
+#else
+#undef HAVE_STATVFS
+#endif
+
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -261,6 +268,9 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 int
 tsdfx_copier(const char *srcfn, const char *dstfn)
 {
+#if HAVE_STATVFS
+	struct statvfs st;
+#endif
 	struct copyfile *src, *dst;
 
 	VERBOSE("%s to %s", srcfn, dstfn);
@@ -282,13 +292,23 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		return (0);
 	}
 
+#if HAVE_STATVFS
+	/* check for available space */
+	if (src->st.st_size > dst->st.st_size && fstatvfs(dst->fd, &st) == 0) {
+		if (st.f_bavail < dst->st.st_size / st.f_bsize) {
+			WARNING("insufficient free space at destination");
+			/* don't leave an empty file */
+			if (dst->st.st_size == 0)
+				unlink(dstfn);
+			goto fail;
+		}
+	}
+#endif
+
 	/* resumed? */
 	if (dst->st.st_size > 0)
 		NOTICE("resuming %s at %zu bytes", dst->name,
 		    (size_t)dst->st.st_size);
-
-	/* XXX truncating dst to the length of src if it is longer might
-	 * save a few cycles */
 
 	/* loop over the input and compare with the destination */
 	for (;;) {
