@@ -381,14 +381,13 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 		sf[q - p] = '\0';
 		memcpy(df, p, q - p);
 		df[q - p] = '\0';
-		if (tsdfx_copy_find(0, srcpath, dstpath) < 0) {
-			if (stat(srcpath, &srcst) == 0 &&
-			    stat(dstpath, &dstst) == 0 &&
-			    srcst.st_size == dstst.st_size &&
-			    srcst.st_mtime == dstst.st_mtime)
-				continue;
+		if (stat(srcpath, &srcst) == 0 &&
+		    stat(dstpath, &dstst) == 0 &&
+		    srcst.st_size == dstst.st_size &&
+		    srcst.st_mtime == dstst.st_mtime)
+			continue;
+		if (tsdfx_copy_find(0, srcpath, dstpath) < 0)
 			tsdfx_copy_new(srcpath, dstpath);
-		}
 	}
 	return (0);
 }
