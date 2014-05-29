@@ -122,7 +122,8 @@ tsdfx_copy_add(struct copy_task *task)
 	/* append the task to the list */
 	assert(copy_len + 1 <= (int)copy_sz);
 	copy_tasks[copy_len] = task;
-	task->index = copy_len++;
+	task->index = copy_len;
+	++copy_len;
 	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	return (task->index);
 }

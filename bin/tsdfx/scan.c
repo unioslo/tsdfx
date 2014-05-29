@@ -229,7 +229,8 @@ tsdfx_scan_add(struct scan_task *task)
 	scan_tasks[scan_len] = task;
 	if ((scan_pipes[scan_len].fd = task->pd) >= 0)
 		scan_pipes[scan_len].events = POLLIN;
-	task->index = scan_len++;
+	task->index = scan_len;
+	++scan_len;
 	tsdfx_scan_invariant(task);
 	return (task->index);
 }
