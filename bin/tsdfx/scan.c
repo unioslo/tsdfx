@@ -36,7 +36,6 @@
 #include <sys/stat.h>
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -383,7 +382,7 @@ tsdfx_scan_start(struct scan_task *task)
 
 		/* change into the target directory */
 		if (chdir(task->path) != 0) {
-			warn("%s", task->path);
+			WARNING("%s: %s", task->path, strerror(errno));
 			_exit(1);
 		}
 
@@ -393,16 +392,16 @@ tsdfx_scan_start(struct scan_task *task)
 
 		/* chroot */
 		if (chroot(task->path) != 0) {
-			warn("%s", task->path);
+			WARNING("%s: %s", task->path, strerror(errno));
 			_exit(1);
 		}
 
 		/* drop privileges */
 #if 0
 		if (task->st.st_uid == 0)
-			warnx("scanning %s with uid 0", task->path);
+			WARNING("scanning %s with uid 0", task->path);
 		if (task->st.st_gid == 0)
-			warnx("scanning %s with gid 0", task->path);
+			WARNING("scanning %s with gid 0", task->path);
 #endif
 		setgid(task->st.st_gid);
 		setuid(task->st.st_uid);
@@ -415,6 +414,7 @@ tsdfx_scan_start(struct scan_task *task)
 	/* close the write end of the pipe */
 	close(pd[1]);
 	++scan_running;
+	VERBOSE("%d jobs, %d running", scan_len, scan_running);
 	task->state = TASK_RUNNING;
 	return (0);
 fail:
@@ -446,6 +446,7 @@ tsdfx_scan_stop(struct scan_task *task)
 		return (-1);
 	task->state = TASK_STOPPING;
 	--scan_running;
+	VERBOSE("%d jobs, %d running", scan_len, scan_running);
 
 	/* close the pipe */
 	tsdfx_scan_mute(task);
@@ -466,7 +467,7 @@ tsdfx_scan_stop(struct scan_task *task)
 
 	/* either done or gave up */
 	if (sig[i] < 0) {
-		warnx("gave up waiting for child %d", (int)task->pid);
+		ERROR("gave up waiting for child %d", (int)task->pid);
 		task->state = TASK_DEAD;
 	}
 
@@ -504,22 +505,22 @@ tsdfx_scan_reset(struct scan_task *task)
 
 	/* check that it's still there */
 	if (lstat(task->path, &st) != 0) {
-		warnx("%s has disappeared", task->path);
+		WARNING("%s has disappeared", task->path);
 		task->state = TASK_INVALID;
 		return (-1);
 	}
 
 	/* re-stat and check for suspicious changes */
 	if (!S_ISDIR(st.st_mode)) {
-		warnx("%s is no longer a directory", task->path);
+		WARNING("%s is no longer a directory", task->path);
 		task->state = TASK_INVALID;
 		return (-1);
 	}
 	if (st.st_uid != task->st.st_uid)
-		warnx("%s owner changed from %ld to %ld", task->path,
+		WARNING("%s owner changed from %ld to %ld", task->path,
 		    (long)st.st_uid, (long)task->st.st_uid);
 	if (st.st_gid != task->st.st_gid)
-		warnx("%s group changed from %ld to %ld", task->path,
+		WARNING("%s group changed from %ld to %ld", task->path,
 		    (long)st.st_gid, (long)task->st.st_gid);
 	task->st = st;
 	task->state = TASK_IDLE;
@@ -610,7 +611,7 @@ tsdfx_scan_slurp(struct scan_task *task)
 	 * A simple (table-driven?) state machine would solve both issues.
 	 */
 	if (regexec(&scan_regex, task->buf, 0, NULL, 0) != 0) {
-		VERBOSE("invalid output from child %ld for %s",
+		WARNING("invalid output from child %ld for %s",
 		    (long)task->pid, task->path);
 		goto einval;
 	}
@@ -636,7 +637,8 @@ tsdfx_scan_sched(void)
 		    scan_tasks[i]->state == TASK_IDLE &&
 		    scan_running < tsdfx_scan_max_tasks)
 			if (tsdfx_scan_start(scan_tasks[i]) != 0)
-				warn("failed to start task");
+				WARNING("failed to start task: %s",
+				    strerror(errno));
 }
 
 /*

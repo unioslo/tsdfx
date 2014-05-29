@@ -33,7 +33,8 @@
 
 #include <sys/wait.h>
 
-#include <err.h>
+#include <errno.h>
+#include <string.h>
 
 #include "tsdfx_log.h"
 #include "tsdfx_task.h"
@@ -53,7 +54,7 @@ tsdfx_task_poll(pid_t pid, enum task_state *state)
 	ret = waitpid(pid, &status, WNOHANG);
 	if (ret < 0) {
 		/* already reaped, or something is wrong */
-		warn("waitpid(%d)", (int)pid);
+		WARNING("waitpid(%d): %s", (int)pid, strerror(errno));
 		*state = TASK_DEAD;
 		return (-1);
 	} else if (ret == 0) {
@@ -69,7 +70,7 @@ tsdfx_task_poll(pid_t pid, enum task_state *state)
 		return (0);
 	} else {
 		/* wtf? */
-		warnx("waitpid(%d) returned %d", (int)pid, ret);
+		ERROR("waitpid(%d) returned %d", (int)pid, ret);
 		return (-1);
 	}
 }

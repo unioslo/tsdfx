@@ -35,7 +35,6 @@
 #include <sys/wait.h>
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <limits.h>
 #include <signal.h>
@@ -124,6 +123,7 @@ tsdfx_copy_add(struct copy_task *task)
 	assert(copy_len + 1 <= (int)copy_sz);
 	copy_tasks[copy_len] = task;
 	task->index = copy_len++;
+	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	return (task->index);
 }
 
@@ -145,6 +145,7 @@ tsdfx_copy_remove(struct copy_task *task)
 		    (copy_len - (i + 1)) * sizeof *copy_tasks);
 	memset(copy_tasks + copy_len, 0, sizeof *copy_tasks);
 	--copy_len;
+	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	for (; i < copy_len; ++i)
 		copy_tasks[i]->index = i;
 	return (0);
@@ -259,6 +260,7 @@ tsdfx_copy_start(struct copy_task *task)
 
 	/* parent */
 	++copy_running;
+	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	task->state = TASK_RUNNING;
 	return (0);
 fail:
@@ -272,8 +274,16 @@ fail:
 int
 tsdfx_copy_poll(struct copy_task *task)
 {
+	enum task_state state;
+	int ret;
 
-	return (tsdfx_task_poll(task->pid, &task->state));
+	state = task->state;
+	ret = tsdfx_task_poll(task->pid, &task->state);
+	if (state == TASK_RUNNING && task->state != state) {
+		--copy_running;
+		VERBOSE("%d jobs, %d running", copy_len, copy_running);
+	}
+	return (ret);
 }
 
 /*
@@ -296,6 +306,7 @@ tsdfx_copy_stop(struct copy_task *task)
 		return (-1);
 	task->state = TASK_STOPPING;
 	--copy_running;
+	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 
 	/* reap the child */
 	for (i = 0; sig[i] >= 0; ++i) {

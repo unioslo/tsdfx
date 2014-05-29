@@ -31,7 +31,6 @@
 # include "config.h"
 #endif
 
-#include <err.h>
 #include <signal.h>
 
 #include "tsdfx_log.h"

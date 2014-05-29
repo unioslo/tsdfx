@@ -36,7 +36,6 @@
 #include <sys/time.h>
 
 #include <assert.h>
-#include <err.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
