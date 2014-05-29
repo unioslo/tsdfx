@@ -31,9 +31,11 @@
 # include "config.h"
 #endif
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #if HAVE_BSD_UNISTD_H
@@ -88,6 +90,16 @@ main(int argc, char *argv[])
 		usage();
 	if (mapfile == NULL)
 		usage();
+
+	/*
+	 * chdir() to a safe place.  Do this before trying to read the map
+	 * file, in case we were given a relative path; we want to fail
+	 * right away rather than upon receipt of a SIGHUP at some
+	 * indeterminate later time.
+	 */
+	if (chdir("/var/empty") != 0 && chdir("/") != 0) {
+		ERROR("/: chdir(): %s", strerror(errno));
+	}
 
 	if (tsdfx_log_init() != 0)
 		exit(1);
