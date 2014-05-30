@@ -225,7 +225,7 @@ tsdfx_map_reload(const char *fn)
 	int i, j, res;
 
 	/* read the new map */
-	VERBOSE("loading %s", fn);
+	NOTICE("loading %s", fn);
 	if (map_read(fn, &newmap, &newmap_sz, &newmap_len) != 0)
 		return (-1);
 	/* first, create new tasks */
