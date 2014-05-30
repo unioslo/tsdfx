@@ -108,9 +108,11 @@ static inline int tsdfx_scan_find(const struct scan_task *);
  * path must start but not end with a slash, and each slash must be
  * followed by a sequence of one or more characters from the POSIX
  * Portable Filename Character Set, the first of which is not a period.
+ *
+ * XXX allow spaces as well for now
  */
 #define SCAN_REGEX \
-	"^((/[0-9A-Za-z_-][0-9A-Za-z._-]*)+\n)*$"
+	"^((/[0-9A-Za-z_-][ 0-9A-Za-z._-]*[0-9A-Za-z._-]*)+\n)*$"
 static regex_t scan_regex;
 
 /*

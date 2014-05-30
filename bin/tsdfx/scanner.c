@@ -166,7 +166,7 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 
 	/* validate file name */
 	for (p = de->d_name; *p; ++p) {
-		if (!is_pfcs(*p)) {
+		if (!is_pfcs(*p) && *p != ' ') { /* XXX allow spaces for now */
 			/* soft error */
 			NOTICE("invalid character in file %s/[%lu]",
 			    sbuf_data(parent), (unsigned long)de->d_ino);
