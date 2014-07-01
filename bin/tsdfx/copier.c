@@ -49,10 +49,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <tsd/log.h>
 #include <tsd/sha1.h>
 #include <tsd/strutil.h>
 
-#include "tsdfx_log.h"
+#include "tsdfx.h"
 
 static mode_t mumask;
 

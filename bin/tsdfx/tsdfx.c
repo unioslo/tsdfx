@@ -33,7 +33,8 @@
 
 #include <signal.h>
 
-#include "tsdfx_log.h"
+#include <tsd/log.h>
+
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
 #include "tsdfx_copy.h"

@@ -36,7 +36,9 @@
 #include <errno.h>
 #include <string.h>
 
-#include "tsdfx_log.h"
+#include <tsd/log.h>
+
+#include "tsdfx.h"
 #include "tsdfx_task.h"
 
 /*

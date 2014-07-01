@@ -33,4 +33,38 @@
 int tsdfx_init(const char *);
 void tsdfx_run(const char *);
 
+/* temporarily moved here from tsdfx_log.h */
+#include <tsd/log.h>
+
+extern int tsdfx_quiet;
+extern int tsdfx_verbose;
+
+#define VERBOSE(...) \
+	do {								\
+		if (tsdfx_verbose)					\
+			tsd_log(__FILE__, __LINE__, __func__,		\
+			    __VA_ARGS__);				\
+	} while (0)
+
+#define NOTICE(...) \
+	do {								\
+		if (!tsdfx_quiet)					\
+			tsd_log(__FILE__, __LINE__, __func__,		\
+			    __VA_ARGS__);				\
+	} while (0)
+
+#define WARNING(...) \
+	do {								\
+		tsd_log(__FILE__, __LINE__, __func__,			\
+		    __VA_ARGS__);					\
+	} while (0)
+
+#define ERROR(...) \
+	do {								\
+		tsd_log(__FILE__, __LINE__, __func__,			\
+		    __VA_ARGS__);					\
+	} while (0)
+
+#define tsdfx_log_init() tsd_log_init()
+
 #endif

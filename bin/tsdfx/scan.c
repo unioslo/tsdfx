@@ -55,7 +55,6 @@
 #include <tsd/strutil.h>
 
 #include "tsdfx.h"
-#include "tsdfx_log.h"
 #include "tsdfx_task.h"
 #include "tsdfx_scan.h"
 

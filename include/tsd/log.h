@@ -27,42 +27,10 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
+#ifndef TSD_LOG_H_INCLUDED
+#define TSD_LOG_H_INCLUDED
+
+void tsd_log(const char *, int, const char *, const char *, ...);
+int tsd_log_init(void);
+
 #endif
-
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
-#include <unistd.h>
-
-#include "tsdfx_log.h"
-
-int tsdfx_quiet = 0;
-int tsdfx_verbose = 0;
-
-void
-tsdfx_log(const char *file, int line, const char *func, const char *fmt, ...)
-{
-	char timestr[32];
-	time_t now;
-	va_list ap;
-
-	time(&now);
-	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
-	    gmtime(&now));
-	fprintf(stderr, "%s [%d] %s:%d %s() ",
-	    timestr, (int)getpid(), file, line, func);
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	fprintf(stderr, "\n");
-}
-
-int
-tsdfx_log_init(void)
-{
-
-	setvbuf(stderr, NULL, _IOLBF, 0);
-	return (0);
-}

@@ -43,9 +43,10 @@
 #include <bsd/stdlib.h>
 #endif
 
+#include <tsd/log.h>
 #include <tsd/strutil.h>
 
-#include "tsdfx_log.h"
+#include "tsdfx.h"
 #include "tsdfx_map.h"
 #include "tsdfx_task.h"
 #include "tsdfx_scan.h"

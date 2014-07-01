@@ -43,11 +43,13 @@
 #endif
 
 #include "tsdfx.h"
-#include "tsdfx_log.h"
 
 #if HAVE_SETPROCTITLE_INIT
 extern char **environ;
 #endif
+
+int tsdfx_quiet = 0;
+int tsdfx_verbose = 0;
 
 static void
 usage(void)

@@ -47,10 +47,10 @@
 #include <bsd/unistd.h>
 #endif
 
+#include <tsd/log.h>
 #include <tsd/strutil.h>
 
 #include "tsdfx.h"
-#include "tsdfx_log.h"
 #include "tsdfx_task.h"
 #include "tsdfx_copy.h"
 

@@ -27,39 +27,39 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_LOG_H_INCLUDED
-#define TSDFX_LOG_H_INCLUDED
-
-extern int tsdfx_quiet;
-extern int tsdfx_verbose;
-
-void tsdfx_log(const char *, int, const char *, const char *, ...);
-int tsdfx_log_init(void);
-
-#define VERBOSE(...) \
-	do {								\
-		if (tsdfx_verbose)					\
-			tsdfx_log(__FILE__, __LINE__, __func__,		\
-			    __VA_ARGS__);				\
-	} while (0)
-
-#define NOTICE(...) \
-	do {								\
-		if (!tsdfx_quiet)					\
-			tsdfx_log(__FILE__, __LINE__, __func__,		\
-			    __VA_ARGS__);				\
-	} while (0)
-
-#define WARNING(...) \
-	do {								\
-		tsdfx_log(__FILE__, __LINE__, __func__,			\
-		    __VA_ARGS__);					\
-	} while (0)
-
-#define ERROR(...) \
-	do {								\
-		tsdfx_log(__FILE__, __LINE__, __func__,			\
-		    __VA_ARGS__);					\
-	} while (0)
-
+#ifdef HAVE_CONFIG_H
+# include "config.h"
 #endif
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <tsd/log.h>
+
+void
+tsd_log(const char *file, int line, const char *func, const char *fmt, ...)
+{
+	char timestr[32];
+	time_t now;
+	va_list ap;
+
+	time(&now);
+	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
+	    gmtime(&now));
+	fprintf(stderr, "%s [%d] %s:%d %s() ",
+	    timestr, (int)getpid(), file, line, func);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, "\n");
+}
+
+int
+tsd_log_init(void)
+{
+
+	setvbuf(stderr, NULL, _IOLBF, 0);
+	return (0);
+}

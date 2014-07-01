@@ -49,7 +49,6 @@
 #include <tsd/strutil.h>
 
 #include "tsdfx.h"
-#include "tsdfx_log.h"
 
 struct scan_entry {
 	struct sbuf *path;
