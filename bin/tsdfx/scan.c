@@ -111,7 +111,7 @@ static inline int tsdfx_scan_find(const struct scan_task *);
  * XXX allow spaces as well for now
  */
 #define SCAN_REGEX \
-	"^((/[0-9A-Za-z_-][ 0-9A-Za-z._-]*[0-9A-Za-z._-]*)+\n)*$"
+	"^((/[0-9A-Za-z_-][ 0-9A-Za-z._-]*[0-9A-Za-z._-]*)+/?\n)*$"
 static regex_t scan_regex;
 
 /*

@@ -372,21 +372,35 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 			/* too long, XXX should warn */
 			continue;
 		}
-		/* XXX copier doesn't create directories, so skip */
-		if (memchr(p + 1, '/', q - p)) {
-			VERBOSE("ignoring %.*s", (int)(q - p), p);
-			continue;
-		}
-		/* XXX end */
 		memcpy(sf, p, q - p);
 		sf[q - p] = '\0';
 		memcpy(df, p, q - p);
 		df[q - p] = '\0';
-		if (stat(srcpath, &srcst) == 0 &&
-		    stat(dstpath, &dstst) == 0 &&
-		    srcst.st_size == dstst.st_size &&
-		    srcst.st_mtime == dstst.st_mtime)
+		/* source must exist */
+		if (stat(srcpath, &srcst) != 0) {
+			WARNING("%s: %s", srcpath, strerror(errno));
 			continue;
+		}
+		/* check destination */
+		if (stat(dstpath, &dstst) == 0) {
+			if ((srcst.st_mode & S_IFMT) != (dstst.st_mode & S_IFMT)) {
+				WARNING("%s and %s both exist with different types",
+				    srcpath, dstpath);
+				continue;
+			}
+			/*
+			 * Attempt to avoid unnecessarily starting a
+			 * copier child for a file that's already been
+			 * copied.  This will not always succeed - the
+			 * permissions check does not take umask into
+			 * account and the size check is meaningless for
+			 * directories.
+			 */
+			if (srcst.st_size == dstst.st_size &&
+			    srcst.st_mode == dstst.st_mode &&
+			    srcst.st_mtime == dstst.st_mtime)
+				continue;
+		}
 		if (tsdfx_copy_find(0, srcpath, dstpath) < 0)
 			tsdfx_copy_new(srcpath, dstpath);
 	}

@@ -89,25 +89,86 @@ static struct copyfile *
 copyfile_open(const char *fn, int mode, int perm)
 {
 	struct copyfile *cf;
+	size_t len;
+	int isdir;
 
+	/* allocate state structure */
 	if ((cf = calloc(1, sizeof *cf + BLOCKSIZE)) == NULL)
 		goto fail;
-	strlcpy(cf->name, fn, sizeof cf->name);
-	cf->mode = mode;
-	cf->bufsize = BLOCKSIZE;
-	if ((cf->fd = open(fn, mode, perm)) < 0)
+	/* copy name, check for trailing /, then strip it off */
+	if ((len = strlcpy(cf->name, fn, sizeof cf->name)) >= sizeof cf->name) {
+		errno = ENAMETOOLONG;
 		goto fail;
-	if (fstat(cf->fd, &cf->st) != 0)
-		goto fail;
-	if ((cf->sha_ctx = sha1_init()) == NULL)
-		goto fail;
+	}
+	if ((isdir = (cf->name[len - 1] == '/')))
+		cf->name[len - 1] = '\0';
+	/* record start time */
 	if ((gettimeofday(&cf->tvo, NULL)) != 0)
 		goto fail;
+	/* first, try to open existing file or directory */
+	if ((cf->fd = open(fn, O_RDONLY)) < 0) {
+		/* if the caller did not request creation, fail */
+		if (!(mode & O_CREAT))
+			goto fail;
+		/* otherwise, create it */
+		if (isdir) {
+			if (mkdir(cf->name, perm) != 0) {
+				ERROR("%s: mkdir()", cf->name);
+				goto fail;
+			}
+			NOTICE("created directory %s", cf->name);
+			/* can't write to directories */
+			mode = (mode & ~O_RDWR) | O_RDONLY;
+		} else {
+			if (creat(cf->name, perm) != 0) {
+				ERROR("%s: creat()", cf->name);
+				goto fail;
+			}
+			NOTICE("created file %s", cf->name);
+		}
+	}
+	/* remember the requested mode */
+	cf->mode = mode & (O_RDONLY|O_RDWR|O_WRONLY);
+	/* reopen if needed, then check what we got */
+	if (cf->fd < 0 || (!isdir && cf->mode != O_RDONLY)) {
+		close(cf->fd);
+		if ((cf->fd = open(fn, cf->mode)) < 0)
+			goto fail;
+	}
+	if (fstat(cf->fd, &cf->st) != 0)
+		goto fail;
+	/* did we expect a file but find a directory, or the reverse ? */
+	if (isdir && !S_ISDIR(cf->st.st_mode)) {
+		errno = ENOTDIR;
+		goto fail;
+	}
+	if (!isdir && S_ISDIR(cf->st.st_mode)) {
+		errno = EISDIR;
+		goto fail;
+	}
+	/* initialize checksum */
+	if ((cf->sha_ctx = sha1_init()) == NULL)
+		goto fail;
+	cf->bufsize = BLOCKSIZE;
 	return (cf);
 fail:
 	if (cf != NULL)
 		copyfile_close(cf);
 	return (NULL);
+}
+
+/* return 1 if file a directory, 0 otherwise; also sets errno */
+static int
+copyfile_isdir(const struct copyfile *cf)
+{
+
+	if (S_ISDIR(cf->st.st_mode)) {
+		errno = EISDIR;
+		return (1);
+	} else {
+		errno = ENOTDIR;
+		return (0);
+	}
 }
 
 /* read a block */
@@ -116,6 +177,8 @@ copyfile_read(struct copyfile *cf)
 {
 	ssize_t rlen;
 
+	if (copyfile_isdir(cf))
+		return (-1);
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
 		ERROR("%s: read()", cf->name);
 		return (-1);
@@ -137,13 +200,24 @@ copyfile_compare(struct copyfile *src, struct copyfile *dst)
 	return (0);
 }
 
-/* compare file size and times */
+/* compare file permissions, size and times */
 static int
 copyfile_comparestat(struct copyfile *src, struct copyfile *dst)
 {
 
+	/* either both directories or both files */
+	if (copyfile_isdir(src) != copyfile_isdir(dst))
+		return (-1);
+	/* same permissions, modulo umask */
+	if ((src->st.st_mode & mumask) != dst->st.st_mode)
+		return (-1);
+	/* don't check size & mtime on directories */
+	if (copyfile_isdir(src))
+		return (0);
+	/* same size, unless they're directories */
 	if (src->st.st_size != dst->st.st_size)
 		return (-1);
+	/* same modification time */
 	if (src->st.st_mtime != dst->st.st_mtime)
 		return (-1);
 	return (0);
@@ -176,6 +250,8 @@ copyfile_write(struct copyfile *cf)
 {
 	ssize_t wlen;
 
+	if (copyfile_isdir(cf))
+		return (-1);
 	if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
 		ERROR("%s: lseek()", cf->name);
 		return (-1);
@@ -210,7 +286,7 @@ copyfile_finish(struct copyfile *cf)
 	gettimeofday(&cf->tvf, NULL);
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
 	if (cf->mode & O_RDWR) {
-		if (ftruncate(cf->fd, cf->offset) != 0) {
+		if (!copyfile_isdir(cf) && ftruncate(cf->fd, cf->offset) != 0) {
 			ERROR("%s: ftruncate()", cf->name);
 			return (-1);
 		}
@@ -273,7 +349,14 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	struct statvfs st;
 #endif
 	struct copyfile *src, *dst;
+	int serrno;
 
+	/* check file names */
+	/* XXX should also compare type (trailing /) */
+	if (!srcfn || !dstfn || !*srcfn || !*dstfn) {
+		errno = EINVAL;
+		return (-1);
+	}
 	VERBOSE("%s to %s", srcfn, dstfn);
 
 	/* what's my umask? */
@@ -285,9 +368,24 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	    (dst = copyfile_open(dstfn, O_RDWR|O_CREAT, 0600)) == NULL)
 		goto fail;
 
+	/* check that they are both the same type */
+	if (copyfile_isdir(src) != copyfile_isdir(dst))
+		goto fail;
+
 	/* compare size and times */
 	if (copyfile_comparestat(src, dst) == 0) {
-		VERBOSE("size and mtime match");
+		VERBOSE("mode, size and mtime match");
+		copyfile_close(src);
+		copyfile_close(dst);
+		return (0);
+	}
+
+	/* directories? */
+	if (copyfile_isdir(src)) {
+		copyfile_copystat(src, dst);
+		if (copyfile_finish(src) != 0 ||
+		    copyfile_finish(dst) != 0)
+			goto fail;
 		copyfile_close(src);
 		copyfile_close(dst);
 		return (0);
@@ -344,10 +442,12 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	}
 	/* not reached */
 fail:
+	serrno = errno;
 	ERROR("failed to copy %s to %s", srcfn, dstfn);
 	if (src != NULL)
 		copyfile_close(src);
 	if (dst != NULL)
 		copyfile_close(dst);
+	errno = serrno;
 	return (-1);
 }

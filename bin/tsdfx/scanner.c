@@ -196,6 +196,7 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 		++p;
 	switch (st.st_mode & S_IFMT) {
 	case S_IFDIR:
+		printf("%s/\n", p);
 		if (tsdfx_scan_append(path) == NULL) {
 			/* hard error */
 			ERROR("failed to append %s to scan list", p);
