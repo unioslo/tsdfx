@@ -49,7 +49,9 @@ tsdfx_task_poll(pid_t pid, enum task_state *state)
 {
 	int ret, status;
 
+#if 0
 	VERBOSE("pid %d", (int)pid);
+#endif
 
 	if (*state != TASK_RUNNING && *state != TASK_STOPPING)
 		return (-1);
