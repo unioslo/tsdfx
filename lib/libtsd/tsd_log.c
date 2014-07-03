@@ -31,6 +31,7 @@
 # include "config.h"
 #endif
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
@@ -38,13 +39,21 @@
 
 #include <tsd/log.h>
 
+/*
+ * Log a message.
+ *
+ * Since this is often called during error handling, we save and restore
+ * errno to spare the caller from having to do it.
+ */
 void
 tsd_log(const char *file, int line, const char *func, const char *fmt, ...)
 {
 	char timestr[32];
 	time_t now;
 	va_list ap;
+	int serrno;
 
+	serrno = errno;
 	time(&now);
 	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
 	    gmtime(&now));
@@ -54,6 +63,7 @@ tsd_log(const char *file, int line, const char *func, const char *fmt, ...)
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	fprintf(stderr, "\n");
+	errno = serrno;
 }
 
 int
