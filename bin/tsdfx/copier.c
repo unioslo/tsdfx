@@ -95,6 +95,10 @@ copyfile_open(const char *fn, int mode, int perm)
 	/* allocate state structure */
 	if ((cf = calloc(1, sizeof *cf + BLOCKSIZE)) == NULL)
 		goto fail;
+	if ((cf->sha_ctx = sha1_init()) == NULL)
+		goto fail;
+	cf->bufsize = BLOCKSIZE;
+
 	/* copy name, check for trailing /, then strip it off */
 	if ((len = strlcpy(cf->name, fn, sizeof cf->name)) >= sizeof cf->name) {
 		errno = ENAMETOOLONG;
@@ -102,41 +106,57 @@ copyfile_open(const char *fn, int mode, int perm)
 	}
 	if ((isdir = (cf->name[len - 1] == '/')))
 		cf->name[len - 1] = '\0';
+
+	/* sanitize permissions and mode */
+	perm &= 0777;
+	errno = EINVAL;
+	switch (mode & (O_RDONLY|O_RDWR|O_WRONLY)) {
+	case O_WRONLY:
+		if (isdir)
+			goto fail;
+	case O_RDONLY:
+	case O_RDWR:
+		break;
+	default:
+		goto fail;
+	}
+	if ((mode & O_RDONLY) && (mode & (O_APPEND|O_CREAT|O_TRUNC)) != 0)
+		goto fail;
+	/* remember the requested mode */
+	cf->mode = mode & (O_RDONLY|O_RDWR|O_WRONLY);
+	/* directories aren't writeable */
+	if (isdir && (mode & O_RDWR))
+		mode = (mode & ~O_RDWR) | O_RDONLY;
+
 	/* record start time */
 	if ((gettimeofday(&cf->tvo, NULL)) != 0)
 		goto fail;
+
 	/* first, try to open existing file or directory */
-	if ((cf->fd = open(fn, O_RDONLY)) < 0) {
+	if ((cf->fd = open(fn, mode & ~O_CREAT)) < 0) {
 		/* if the caller did not request creation, fail */
-		if (!(mode & O_CREAT))
+		if (!(errno == ENOENT && (mode & O_CREAT)))
 			goto fail;
 		/* otherwise, create it */
 		if (isdir) {
 			if (mkdir(cf->name, perm) != 0) {
-				ERROR("%s: mkdir()", cf->name);
+				ERROR("%s: mkdir(): %s", cf->name, strerror(errno));
 				goto fail;
 			}
 			NOTICE("created directory %s", cf->name);
-			/* can't write to directories */
-			mode = (mode & ~O_RDWR) | O_RDONLY;
+			if ((cf->fd = open(fn, cf->mode)) < 0)
+				goto fail;
 		} else {
-			if (creat(cf->name, perm) != 0) {
-				ERROR("%s: creat()", cf->name);
+			if ((cf->fd = open(cf->name, mode, perm)) < 0) {
+				ERROR("%s: open(): %s", cf->name, strerror(errno));
 				goto fail;
 			}
 			NOTICE("created file %s", cf->name);
 		}
 	}
-	/* remember the requested mode */
-	cf->mode = mode & (O_RDONLY|O_RDWR|O_WRONLY);
-	/* reopen if needed, then check what we got */
-	if (cf->fd < 0 || (!isdir && cf->mode != O_RDONLY)) {
-		close(cf->fd);
-		if ((cf->fd = open(fn, cf->mode)) < 0)
-			goto fail;
-	}
 	if (fstat(cf->fd, &cf->st) != 0)
 		goto fail;
+
 	/* did we expect a file but find a directory, or the reverse ? */
 	if (isdir && !S_ISDIR(cf->st.st_mode)) {
 		errno = ENOTDIR;
@@ -146,10 +166,8 @@ copyfile_open(const char *fn, int mode, int perm)
 		errno = EISDIR;
 		goto fail;
 	}
-	/* initialize checksum */
-	if ((cf->sha_ctx = sha1_init()) == NULL)
-		goto fail;
-	cf->bufsize = BLOCKSIZE;
+
+	/* good */
 	return (cf);
 fail:
 	if (cf != NULL)
@@ -180,7 +198,7 @@ copyfile_read(struct copyfile *cf)
 	if (copyfile_isdir(cf))
 		return (-1);
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
-		ERROR("%s: read()", cf->name);
+		ERROR("%s: read(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
 	if ((cf->buflen = (size_t)rlen) < cf->bufsize)
@@ -253,11 +271,11 @@ copyfile_write(struct copyfile *cf)
 	if (copyfile_isdir(cf))
 		return (-1);
 	if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
-		ERROR("%s: lseek()", cf->name);
+		ERROR("%s: lseek(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
 	if ((wlen = write(cf->fd, cf->buf, cf->buflen)) != (ssize_t)cf->buflen) {
-		ERROR("%s: write()", cf->name);
+		ERROR("%s: write(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
 	return (0);
@@ -287,13 +305,13 @@ copyfile_finish(struct copyfile *cf)
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
 	if (cf->mode & O_RDWR) {
 		if (!copyfile_isdir(cf) && ftruncate(cf->fd, cf->offset) != 0) {
-			ERROR("%s: ftruncate()", cf->name);
+			ERROR("%s: ftruncate(): %s", cf->name, strerror(errno));
 			return (-1);
 		}
 		mode = (cf->st.st_mode & 0777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
 		if (fchmod(cf->fd, mode) != 0) {
-			ERROR("%s: fchmod(%04o)", cf->name, mode);
+			ERROR("%s: fchmod(%04o): %s", cf->name, mode, strerror(errno));
 			return (-1);
 		}
 		times[0].tv_sec = cf->st.st_atim.tv_sec;
@@ -301,7 +319,7 @@ copyfile_finish(struct copyfile *cf)
 		times[1].tv_sec = cf->st.st_mtim.tv_sec;
 		times[1].tv_usec = cf->st.st_mtim.tv_nsec / 1000;
 		if (futimes(cf->fd, times) != 0) {
-			ERROR("%s: futimes()", cf->name);
+			ERROR("%s: futimes(): %s", cf->name, strerror(errno));
 			return (-1);
 		}
 	}
