@@ -39,7 +39,7 @@ int tsdfx_scan_add(struct scan_task *);
 int tsdfx_scan_mute(const struct scan_task *);
 int tsdfx_scan_unmute(const struct scan_task *);
 int tsdfx_scan_remove(struct scan_task *);
-struct scan_task *tsdfx_scan_new(const char *);
+struct scan_task *tsdfx_scan_new(const char *, const char *);
 int tsdfx_scan_start(struct scan_task *);
 int tsdfx_scan_stop(struct scan_task *);
 int tsdfx_scan_reset(struct scan_task *);

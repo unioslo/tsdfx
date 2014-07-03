@@ -55,6 +55,8 @@
 #include "tsdfx_copy.h"
 
 struct copy_task {
+	char name[NAME_MAX];
+
 	/* what to copy */
 	char srcpath[PATH_MAX];
 	char dstpath[PATH_MAX];
@@ -158,7 +160,7 @@ tsdfx_copy_remove(struct copy_task *task)
  * file and look it up by st_dev / st_ino.
  */
 struct copy_task *
-tsdfx_copy_new(const char *srcpath, const char *dstpath)
+tsdfx_copy_new(const char *name, const char *srcpath, const char *dstpath)
 {
 	struct copy_task *task;
 	struct stat st;
@@ -169,6 +171,10 @@ tsdfx_copy_new(const char *srcpath, const char *dstpath)
 		return (NULL);
 	if ((task = calloc(1, sizeof *task)) == NULL)
 		return (NULL);
+	if (strlcpy(task->name, name, sizeof task->name) >= sizeof task->name) {
+		errno = ENAMETOOLONG;
+		goto fail;
+	}
 	task->uid = st.st_uid;
 	task->gid = st.st_gid;
 	task->pid = -1;
@@ -231,11 +237,11 @@ tsdfx_copy_start(struct copy_task *task)
 
 	/* child */
 	if (task->pid == 0) {
-		VERBOSE("child process for %s -> %s",
-		    task->srcpath, task->dstpath);
+		VERBOSE("copy child for %s", task->name);
 #if HAVE_SETPROCTITLE
 		/* set process title if possible */
-		setproctitle("copy %s to %s", task->srcpath, task->dstpath);
+		setproctitle("[%s] copy %s to %s", task->name,
+		    task->srcpath, task->dstpath);
 #endif
 
 #if HAVE_CLOSEFROM
@@ -339,7 +345,8 @@ tsdfx_copy_stop(struct copy_task *task)
  * start copy tasks for each file.
  */
 int
-tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
+tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
+    const char *files)
 {
 	struct stat srcst, dstst;
 	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
@@ -402,7 +409,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 				continue;
 		}
 		if (tsdfx_copy_find(0, srcpath, dstpath) < 0)
-			tsdfx_copy_new(srcpath, dstpath);
+			tsdfx_copy_new(name, srcpath, dstpath);
 	}
 	return (0);
 }

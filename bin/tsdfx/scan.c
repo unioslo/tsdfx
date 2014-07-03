@@ -65,6 +65,8 @@
 #define SCAN_INTERVAL		300
 
 struct scan_task {
+	char name[NAME_MAX];
+
 	/* what to scan */
 	char path[PATH_MAX];
 	struct stat st;
@@ -296,13 +298,13 @@ tsdfx_scan_remove(struct scan_task *task)
  * Prepare a scan task.
  */
 struct scan_task *
-tsdfx_scan_new(const char *path)
+tsdfx_scan_new(const char *name, const char *path)
 {
 	struct scan_task *task;
 	struct stat st;
 	int serrno;
 
-	VERBOSE("%s", path);
+	VERBOSE("%s", name);
 	if (lstat(path, &st) != 0)
 		return (NULL);
 	if (!S_ISDIR(st.st_mode)) {
@@ -311,6 +313,10 @@ tsdfx_scan_new(const char *path)
 	}
 	if ((task = calloc(1, sizeof *task)) == NULL)
 		return (NULL);
+	if (strlcpy(task->name, name, sizeof task->name) >= sizeof task->name) {
+		errno = ENAMETOOLONG;
+		goto fail;
+	}
 	task->st = st;
 	task->pid = -1;
 	task->pd = -1;
@@ -366,10 +372,10 @@ tsdfx_scan_start(struct scan_task *task)
 
 	/* child */
 	if (task->pid == 0) {
-		VERBOSE("child process for %s", task->path);
+		VERBOSE("scan child for %s", task->name);
 #if HAVE_SETPROCTITLE
 		/* set process title if possible */
-		setproctitle("scan %s", task->path);
+		setproctitle("[%s] scan %s", task->name, task->path);
 #endif
 
 		/* replace stdout with pipe and close read end */

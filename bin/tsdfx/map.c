@@ -53,6 +53,7 @@
 #include "tsdfx_copy.h"
 
 struct map {
+	char name[NAME_MAX];
 	char srcpath[PATH_MAX];
 	char dstpath[PATH_MAX];
 	struct scan_task *task;
@@ -85,12 +86,17 @@ verify_path(const char *path, char *buf)
  * Create a new struct map
  */
 static struct map *
-map_new(const char *fn, int n, const char *src, const char *dst)
+map_new(const char *fn, int n, const char *name, const char *src, const char *dst)
 {
 	struct map *m;
 
 	if ((m = calloc(1, sizeof *m)) == NULL) {
 		ERROR("calloc()");
+		return (NULL);
+	}
+	if (strlcpy(m->name, name, sizeof m->name) >= sizeof m->name) {
+		ERROR("%s:%d: name too long", fn, n);
+		free(m);
 		return (NULL);
 	}
 	if (verify_path(src, m->srcpath) != 0) {
@@ -128,17 +134,21 @@ map_compare(const void *a, const void *b)
 	const struct map *ma = *(const struct map * const *)a;
 	const struct map *mb = *(const struct map * const *)b;
 
-	return (strcmp(ma->srcpath, mb->srcpath));
+	return (strcmp(ma->name, mb->name));
 }
 
 /*
  * Read the map file
+ *
+ * XXX deduplication algorithm sucks - it should compare and warn about
+ * identical source paths, not just names, but that would require sorting
+ * the list twice: once by name and once by source path.
  */
 static int
 map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 {
 	FILE *f;
-	char **words;
+	char **words, *p;
 	int i, j, lno, nwords;
 	struct map **m, **tm;
 	size_t sz;
@@ -157,20 +167,26 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	while ((words = tsd_readlinev(f, &lno, &nwords)) != NULL) {
 		if (nwords == 0)
 			continue;
-		/* expecting "srcpath => dstpath" */
-		if (nwords != 3 || strcmp(words[1], "=>") != 0) {
+		/* expecting "name: srcpath => dstpath" */
+		if (nwords != 4 || (p = strchr(words[0], ':')) == NULL ||
+		    p[1] != '\0' || strcmp(words[2], "=>") != 0) {
 			ERROR("%s:%d: syntax error", fn, lno);
 			goto fail;
 		}
+		/* strip colon from name */
+		*p = '\0';
+		/* resize array if necessary */
 		if (len >= (int)sz) {
 			sz = sz ? sz * 2 : 32;
 			if ((tm = realloc(m, sz * sizeof *tm)) == NULL)
 				goto fail;
 			m = tm;
 		}
-		if ((m[len] = map_new(fn, lno, words[0], words[2])) == NULL)
+		/* create new map */
+		if ((m[len] = map_new(fn, lno, words[0], words[1], words[3])) == NULL)
 			goto fail;
 		++len;
+		/* done, free allocated memory */
 		for (i = 0; i < nwords; ++i)
 			free(words[i]);
 		free(words);
@@ -184,7 +200,7 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	mergesort(m, len, sizeof *m, map_compare);
 	for (i = 0; i + 1 < len; ++i) {
 		for (j = i + 1; j < len; ++j) {
-			if (strcmp(m[i]->srcpath, m[j]->srcpath) != 0)
+			if (strcmp(m[i]->name, m[j]->name) != 0)
 				break;
 			map_delete(m[j]);
 			m[j] = NULL;
@@ -216,6 +232,9 @@ fail:
 
 /*
  * Reload the map from the specified file.
+ *
+ * XXX is it really necessary to merge the old and new maps together?
+ * simply replacing the old map with the new would be much simpler.
  */
 int
 tsdfx_map_reload(const char *fn)
@@ -233,20 +252,20 @@ tsdfx_map_reload(const char *fn)
 	i = j = 0;
 	while (j < newmap_len) {
 		res = (i < map_len) ?
-		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : 1;
+		    strcmp(map[i]->name, newmap[j]->name) : 1;
 		if (res == 0) {
 			/* unchanged task */
-			VERBOSE("keeping %s", map[i]->srcpath);
+			VERBOSE("keeping %s", map[i]->name);
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
-			VERBOSE("dropping %s", map[i]->srcpath);
+			VERBOSE("dropping %s", map[i]->name);
 			++i;
 		} else if (res > 0) {
 			/* new task */
-			VERBOSE("adding %s", newmap[j]->srcpath);
+			VERBOSE("adding %s", newmap[j]->name);
 			newmap[j]->task =
-			    tsdfx_scan_new(newmap[j]->srcpath);
+			    tsdfx_scan_new(newmap[j]->name, newmap[j]->srcpath);
 			if (newmap[j]->task == NULL)
 				goto fail;
 			++j;
@@ -258,7 +277,7 @@ tsdfx_map_reload(const char *fn)
 	i = j = 0;
 	while (i < map_len) {
 		res = (j < newmap_len) ?
-		    strcmp(map[i]->srcpath, newmap[j]->srcpath) : -1;
+		    strcmp(map[i]->name, newmap[j]->name) : -1;
 		if (res == 0) {
 			/* unchanged task */
 			newmap[j]->task = map[i]->task;
@@ -282,7 +301,8 @@ tsdfx_map_reload(const char *fn)
 	map_sz = newmap_sz;
 	map_len = newmap_len;
 	for (i = 0; i < map_len; ++i)
-		VERBOSE("map: %s -> %s", map[i]->srcpath, map[i]->dstpath);
+		VERBOSE("map %s: %s -> %s", map[i]->name,
+		    map[i]->srcpath, map[i]->dstpath);
 	return (0);
 fail:
 	for (j = 0; i < newmap_len; ++j)
@@ -304,7 +324,8 @@ tsdfx_map_iter(void)
 	for (i = 0; i < map_len; ++i) {
 		switch (tsdfx_scan_state(map[i]->task)) {
 		case TASK_FINISHED:
-			tsdfx_copy_wrap(map[i]->srcpath, map[i]->dstpath,
+			tsdfx_copy_wrap(map[i]->name,
+			    map[i]->srcpath, map[i]->dstpath,
 			    tsdfx_scan_result(map[i]->task));
 			tsdfx_scan_reset(map[i]->task);
 			break;
