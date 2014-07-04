@@ -44,6 +44,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,7 +62,7 @@ static mode_t mumask;
 #define BLOCKSIZE	1024576
 
 struct copyfile {
-	char		 name[1024];
+	char		 name[PATH_MAX];
 	int		 fd;
 	int		 mode;
 	struct stat	 st;
