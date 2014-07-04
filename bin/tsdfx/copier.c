@@ -227,7 +227,7 @@ copyfile_comparestat(struct copyfile *src, struct copyfile *dst)
 	if (copyfile_isdir(src) != copyfile_isdir(dst))
 		return (-1);
 	/* same permissions, modulo umask */
-	if ((src->st.st_mode & mumask) != dst->st.st_mode)
+	if ((src->st.st_mode & ~mumask) != dst->st.st_mode)
 		return (-1);
 	/* don't check size & mtime on directories */
 	if (copyfile_isdir(src))
