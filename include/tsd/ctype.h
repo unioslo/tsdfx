@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2012 Dag-Erling Smørgrav
+ * Copyright (c) 2014 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,25 +33,33 @@
 /*
  * Evaluates to non-zero if the argument is a digit.
  */
-#define is_digit(ch)				\
+#define is_digit(ch)							\
 	(ch >= '0' && ch <= '9')
+
+/*
+ * Evaluates to non-zero if the argument is a hex digit.
+ */
+#define is_xdigit(ch)							\
+	((ch >= '0' && ch <= '9') ||					\
+	 (ch >= 'a' && ch <= 'f') ||					\
+	 (ch >= 'A' && ch <= 'F'))
 
 /*
  * Evaluates to non-zero if the argument is an uppercase letter.
  */
-#define is_upper(ch)				\
+#define is_upper(ch)							\
 	(ch >= 'A' && ch <= 'Z')
 
 /*
  * Evaluates to non-zero if the argument is a lowercase letter.
  */
-#define is_lower(ch)				\
+#define is_lower(ch)							\
 	(ch >= 'a' && ch <= 'z')
 
 /*
  * Evaluates to non-zero if the argument is a letter.
  */
-#define is_letter(ch)				\
+#define is_letter(ch)							\
 	(is_upper(ch) || is_lower(ch))
 
 /*
@@ -59,13 +67,13 @@
  * For the purposes of this macro, the definition of linear whitespace is
  * extended to include the form feed and carraige return characters.
  */
-#define is_lws(ch)				\
+#define is_lws(ch)							\
 	(ch == ' ' || ch == '\t' || ch == '\f' || ch == '\r')
 
 /*
  * Evaluates to non-zero if the argument is a whitespace character.
  */
-#define is_ws(ch)				\
+#define is_ws(ch)							\
 	(is_lws(ch) || ch == '\n')
 
 /*
@@ -76,12 +84,20 @@
 	(ch >= '!' && ch <= '~')
 
 /*
- * Returns non-zero if the argument belongs to the POSIX Portable Filename
- * Character Set.  Assumes that the execution character set is a superset
- * of ASCII.
+ * Evaluates to non-zero if the argument belongs to the POSIX Portable
+ * Filename Character Set.  Assumes that the execution character set is a
+ * superset of ASCII.
  */
-#define is_pfcs(ch)				\
-	(is_digit(ch) || is_letter(ch)  ||	\
+#define is_pfcs(ch)							\
+	(is_digit(ch) || is_letter(ch) ||				\
 	 ch == '.' || ch == '_' || ch == '-')
+
+/*
+ * Evaluates to non-zero if the argument is an unreserved character
+ * according to RFC 3986, i.e. can be used unencoded in URIs.
+ */
+#define is_uri(ch)							\
+	(is_digit(ch) || is_letter(ch) ||				\
+	 ch == '.' || ch == '_' || ch == '-' || ch == '~')
 
 #endif
