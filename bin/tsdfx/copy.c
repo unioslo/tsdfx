@@ -143,14 +143,15 @@ tsdfx_copy_remove(struct copy_task *task)
 	i = task->index;
 	if (copy_tasks[i] != task)
 		return (-1);
+	task->index = -1;
 	if (i + 1 < copy_len)
 		memmove(copy_tasks + i, copy_tasks + i + 1,
 		    (copy_len - (i + 1)) * sizeof *copy_tasks);
-	memset(copy_tasks + copy_len, 0, sizeof *copy_tasks);
 	--copy_len;
-	VERBOSE("%d jobs, %d running", copy_len, copy_running);
+	memset(copy_tasks + copy_len, 0, sizeof *copy_tasks);
 	for (; i < copy_len; ++i)
 		copy_tasks[i]->index = i;
+	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	return (0);
 }
 
@@ -208,6 +209,7 @@ tsdfx_copy_delete(struct copy_task *task)
 	if (task->pid != -1)
 		tsdfx_copy_stop(task);
 	tsdfx_copy_remove(task);
+	memset(task, 0, sizeof task);
 	free(task);
 }
 
@@ -423,12 +425,25 @@ tsdfx_copy_iter(void)
 	int i;
 
 	for (i = 0; i < copy_len; ++i) {
-		if (copy_tasks[i]->state == TASK_IDLE &&
-		    copy_running < tsdfx_copy_max_tasks)
-			tsdfx_copy_start(copy_tasks[i]);
-		tsdfx_copy_poll(copy_tasks[i]);
-		if (copy_tasks[i]->state != TASK_RUNNING)
+		switch (copy_tasks[i]->state) {
+		case TASK_IDLE:
+			if (copy_running < tsdfx_copy_max_tasks)
+				tsdfx_copy_start(copy_tasks[i]);
+			break;
+		case TASK_RUNNING:
+			tsdfx_copy_poll(copy_tasks[i]);
+			break;
+		case TASK_STOPPED:
+		case TASK_DEAD:
+		case TASK_FINISHED:
+		case TASK_FAILED:
 			tsdfx_copy_delete(copy_tasks[i]);
+			--i; /* XXX hack */
+			break;
+		default:
+			/* nothing */
+			break;
+		}
 	}
 	return (0);
 }
