@@ -286,9 +286,9 @@ tsdfx_scan_remove(struct scan_task *task)
 		memmove(scan_pipes + i, scan_pipes + i + 1,
 		    (scan_len - (i + 1)) * sizeof *scan_pipes);
 	}
+	--scan_len;
 	memset(scan_tasks + scan_len, 0, sizeof *scan_tasks);
 	memset(scan_pipes + scan_len, 0, sizeof *scan_pipes);
-	--scan_len;
 	for (; i < scan_len; ++i)
 		scan_tasks[i]->index = i;
 	return (0);
@@ -553,7 +553,9 @@ tsdfx_scan_delete(struct scan_task *task)
 	if (task->pid != -1 || task->pd != -1)
 		tsdfx_scan_stop(task);
 	tsdfx_scan_remove(task);
+	memset(task->buf, 0, sizeof task->buf);
 	free(task->buf);
+	memset(task, 0, sizeof task);
 	free(task);
 }
 
