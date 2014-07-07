@@ -1,6 +1,7 @@
 noinst_HEADERS =
 noinst_HEADERS += tsd/bitwise.h
 noinst_HEADERS += tsd/ctype.h
+noinst_HEADERS += tsd/dict.h
 noinst_HEADERS += tsd/hash.h
 noinst_HEADERS += tsd/log.h
 noinst_HEADERS += tsd/percent.h
