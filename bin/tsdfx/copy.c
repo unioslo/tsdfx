@@ -34,6 +34,12 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#if HAVE_SYS_STATVFS_H
+#include <sys/statvfs.h>
+#else
+#undef HAVE_STATVFS
+#endif
+
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
@@ -350,6 +356,9 @@ int
 tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
     const char *files)
 {
+#if HAVE_STATVFS
+	struct statvfs st;
+#endif
 	struct stat srcst, dstst;
 	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
 	size_t slen, dlen, maxlen;
@@ -400,16 +409,28 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 			/*
 			 * Attempt to avoid unnecessarily starting a
 			 * copier child for a file that's already been
-			 * copied.  This will not always succeed - the
-			 * permissions check does not take umask into
-			 * account and the size check is meaningless for
-			 * directories.
+			 * copied.
+			 * XXX the permissions check should take umask
+			 * into account.
 			 */
-			if (srcst.st_size == dstst.st_size &&
+			if (S_ISREG(srcst.st_mode) &&
+			    srcst.st_size == dstst.st_size &&
 			    srcst.st_mode == dstst.st_mode &&
 			    srcst.st_mtime == dstst.st_mtime)
 				continue;
+			if (S_ISDIR(srcst.st_mode) &&
+			    srcst.st_mode == dstst.st_mode)
+				continue;
+		} else {
+			memset(&dstst, 0, sizeof dstst);
 		}
+#if HAVE_STATVFS
+		/* check for available space */
+		if (!S_ISDIR(srcst.st_mode) &&
+		    srcst.st_size > dstst.st_size && statvfs(dstdir, &st) == 0 &&
+		    (off_t)(st.f_bavail * st.f_bsize) < srcst.st_size - dstst.st_size)
+			continue;
+#endif
 		if (tsdfx_copy_find(0, srcpath, dstpath) < 0)
 			tsdfx_copy_new(name, srcpath, dstpath);
 	}
