@@ -40,6 +40,7 @@ void tsdfx_copy_delete(struct copy_task *);
 int tsdfx_copy_start(struct copy_task *);
 int tsdfx_copy_poll(struct copy_task *);
 int tsdfx_copy_stop(struct copy_task *);
+int tsdfx_copy_sched(void);
 int tsdfx_copy_iter(void);
 int tsdfx_copy_init(void);
 

@@ -36,8 +36,13 @@ void tsdfx_run(const char *);
 /* temporarily moved here from tsdfx_log.h */
 #include <tsd/log.h>
 
+extern int tsdfx_dryrun;
+extern int tsdfx_oneshot;
 extern int tsdfx_quiet;
 extern int tsdfx_verbose;
+
+extern int scan_running;
+extern int copy_running;
 
 #define VERBOSE(...) \
 	do {								\

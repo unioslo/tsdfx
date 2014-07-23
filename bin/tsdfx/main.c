@@ -55,7 +55,7 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx -m mapfile\n");
+	fprintf(stderr, "usage: tsdfx [-1nv] -m mapfile\n");
 	exit(1);
 }
 
@@ -73,10 +73,16 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "m:v")) != -1)
+	while ((opt = getopt(argc, argv, "1m:nv")) != -1)
 		switch (opt) {
+		case '1':
+			++tsdfx_oneshot;
+			break;
 		case 'm':
 			mapfile = optarg;
+			break;
+		case 'n':
+			++tsdfx_dryrun;
 			break;
 		case 'v':
 			++tsdfx_verbose;

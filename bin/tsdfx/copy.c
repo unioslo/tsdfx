@@ -60,6 +60,10 @@
 #include "tsdfx_task.h"
 #include "tsdfx_copy.h"
 
+#define TSDFX_COPY_UMASK 007
+
+int tsdfx_dryrun = 0;
+
 struct copy_task {
 	char name[NAME_MAX];
 
@@ -83,7 +87,7 @@ struct copy_task {
 static struct copy_task **copy_tasks;
 static size_t copy_sz;
 static int copy_len;
-static int copy_running;
+int copy_running;
 
 /* max concurrent copy tasks */
 int tsdfx_copy_max_tasks = 8;
@@ -267,10 +271,11 @@ tsdfx_copy_start(struct copy_task *task)
 			WARNING("copying %s with gid 0", task->srcpath);
 
 		/* set safe umask */
-		umask(007);
+		umask(TSDFX_COPY_UMASK);
 
 		/* run the copy task */
-		_exit(!!tsdfx_copier(task->srcpath, task->dstpath));
+		_exit(tsdfx_dryrun ? 0 :
+		    !!tsdfx_copier(task->srcpath, task->dstpath));
 	}
 
 	/* parent */
@@ -394,11 +399,18 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 		sf[q - p] = '\0';
 		memcpy(df, p, q - p);
 		df[q - p] = '\0';
+
+		/* log and check for duplicate */
+		VERBOSE("%s -> %s", srcpath, dstpath);
+		if (tsdfx_copy_find(0, srcpath, dstpath) >= 0)
+			continue;
+
 		/* source must exist */
 		if (stat(srcpath, &srcst) != 0) {
 			WARNING("%s: %s", srcpath, strerror(errno));
 			continue;
 		}
+
 		/* check destination */
 		if (stat(dstpath, &dstst) == 0) {
 			if ((srcst.st_mode & S_IFMT) != (dstst.st_mode & S_IFMT)) {
@@ -410,9 +422,9 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 			 * Attempt to avoid unnecessarily starting a
 			 * copier child for a file that's already been
 			 * copied.
-			 * XXX the permissions check should take umask
-			 * into account.
+			 * XXX hack
 			 */
+			srcst.st_mode &= ~TSDFX_COPY_UMASK;
 			if (S_ISREG(srcst.st_mode) &&
 			    srcst.st_size == dstst.st_size &&
 			    srcst.st_mode == dstst.st_mode &&
@@ -424,6 +436,7 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 		} else {
 			memset(&dstst, 0, sizeof dstst);
 		}
+
 #if HAVE_STATVFS
 		/* check for available space */
 		if (!S_ISDIR(srcst.st_mode) &&
@@ -431,28 +444,30 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 		    (off_t)(st.f_bavail * st.f_bsize) < srcst.st_size - dstst.st_size)
 			continue;
 #endif
-		if (tsdfx_copy_find(0, srcpath, dstpath) < 0)
-			tsdfx_copy_new(name, srcpath, dstpath);
+
+		/* create task */
+		tsdfx_copy_new(name, srcpath, dstpath);
 	}
 	return (0);
 }
 
 /*
- * Monitor child processes
+ * Start any scheduled tasks
  */
 int
-tsdfx_copy_iter(void)
+tsdfx_copy_sched(void)
 {
 	int i;
 
 	for (i = 0; i < copy_len; ++i) {
 		switch (copy_tasks[i]->state) {
 		case TASK_IDLE:
-			if (copy_running < tsdfx_copy_max_tasks)
-				tsdfx_copy_start(copy_tasks[i]);
+			if (tsdfx_copy_start(copy_tasks[i]) != 0)
+				WARNING("failed to start task: %s",
+				    strerror(errno));
 			break;
 		case TASK_RUNNING:
-			tsdfx_copy_poll(copy_tasks[i]);
+			/* leave it alone */
 			break;
 		case TASK_STOPPED:
 		case TASK_DEAD:
@@ -466,6 +481,20 @@ tsdfx_copy_iter(void)
 			break;
 		}
 	}
+	return (copy_running);
+}
+
+/*
+ * Monitor child processes
+ */
+int
+tsdfx_copy_iter(void)
+{
+	int i;
+
+	for (i = 0; i < copy_len; ++i)
+		if (copy_tasks[i]->state == TASK_RUNNING)
+			tsdfx_copy_poll(copy_tasks[i]);
 	return (0);
 }
 

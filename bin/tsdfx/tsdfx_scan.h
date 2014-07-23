@@ -45,8 +45,8 @@ int tsdfx_scan_stop(struct scan_task *);
 int tsdfx_scan_reset(struct scan_task *);
 void tsdfx_scan_delete(struct scan_task *);
 int tsdfx_scan_slurp(struct scan_task *);
-void tsdfx_scan_sched(void);
-int tsdfx_scan_iter(int);
+int tsdfx_scan_sched(void);
+int tsdfx_scan_iter(void);
 int tsdfx_scan_init(void);
 
 int tsdfx_scanner(const char *);

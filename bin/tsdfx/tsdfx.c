@@ -32,6 +32,7 @@
 #endif
 
 #include <signal.h>
+#include <unistd.h>
 
 #include <tsd/log.h>
 
@@ -39,6 +40,8 @@
 #include "tsdfx_scan.h"
 #include "tsdfx_copy.h"
 #include "tsdfx.h"
+
+int tsdfx_oneshot = 0;
 
 static volatile sig_atomic_t sighup;
 
@@ -78,19 +81,29 @@ tsdfx_run(const char *mapfile)
 
 	signal(SIGHUP, signal_handler);
 	for (;;) {
-		/* start any scheduled tasks */
-		tsdfx_scan_sched();
-		/* wait up to 1 second for input */
-		tsdfx_scan_iter(1000);
 		/* check for sighup */
 		if (sighup) {
 			sighup = 0;
 			if (tsdfx_map_reload(mapfile) != 0)
 				WARNING("failed to reload map file");
 		}
-		/* check if any scan tasks are finished */
+
+		/* start and run scan tasks */
+		tsdfx_scan_sched();
+		tsdfx_scan_iter();
+
+		/* check scan tasks and create copy tasks as needed */
 		tsdfx_map_iter();
-		/* check how our copiers are coming along */
+
+		/* start and run copy tasks */
+		tsdfx_copy_sched();
 		tsdfx_copy_iter();
+
+		/* in oneshot mode, are we done? */
+		if (tsdfx_oneshot && scan_running == 0 && copy_running == 0)
+			break;
+
+		usleep(100 * 1000);
 	}
+	signal(SIGHUP, SIG_DFL);
 }

@@ -309,7 +309,7 @@ copyfile_finish(struct copyfile *cf)
 			ERROR("%s: ftruncate(): %s", cf->name, strerror(errno));
 			return (-1);
 		}
-		mode = (cf->st.st_mode & 0777) | 0600; // force u+rw
+		mode = (cf->st.st_mode & 07777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
 		if (fchmod(cf->fd, mode) != 0) {
 			ERROR("%s: fchmod(%04o): %s", cf->name, mode, strerror(errno));

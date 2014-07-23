@@ -95,7 +95,7 @@ static struct scan_task **scan_tasks;
 static struct pollfd *scan_pipes;
 static size_t scan_sz;
 static int scan_len;
-static int scan_running;
+int scan_running;
 
 /* max concurrent scan tasks */
 int tsdfx_scan_max_tasks = 8;
@@ -635,7 +635,7 @@ einval:
 /*
  * Start any scheduled tasks
  */
-void
+int
 tsdfx_scan_sched(void)
 {
 	time_t now;
@@ -649,19 +649,20 @@ tsdfx_scan_sched(void)
 			if (tsdfx_scan_start(scan_tasks[i]) != 0)
 				WARNING("failed to start task: %s",
 				    strerror(errno));
+	return (scan_running);
 }
 
 /*
  * The heart of the scan loop: check for available data and slurp it.
  */
 int
-tsdfx_scan_iter(int timeout)
+tsdfx_scan_iter(void)
 {
 	struct scan_task *task;
 	int i, ret;
 
 	/* wait for input */
-	if ((ret = poll(scan_pipes, scan_len, timeout)) <= 0)
+	if ((ret = poll(scan_pipes, scan_len, 0)) <= 0)
 		return (ret);
 	for (i = 0; i < scan_len; ++i) {
 		if (scan_pipes[i].revents == 0)
