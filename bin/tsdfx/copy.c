@@ -42,7 +42,9 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <grp.h>
 #include <limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +80,7 @@ struct copy_task {
 	enum task_state state;
 
 	/* child process */
+	char user[LOGIN_MAX];
 	uid_t uid;
 	gid_t gid;
 	pid_t pid;
@@ -175,6 +178,7 @@ tsdfx_copy_new(const char *name, const char *srcpath, const char *dstpath)
 {
 	struct copy_task *task;
 	struct stat st;
+	struct passwd *pw;
 	int serrno;
 
 	VERBOSE("%s -> %s", srcpath, dstpath);
@@ -186,8 +190,18 @@ tsdfx_copy_new(const char *name, const char *srcpath, const char *dstpath)
 		errno = ENAMETOOLONG;
 		goto fail;
 	}
-	task->uid = st.st_uid;
-	task->gid = st.st_gid;
+	if ((pw = getpwuid(st.st_uid)) == NULL ||
+	    strlen(pw->pw_name) >= sizeof task->user) {
+		WARNING("%s is owned by unknown or invalid user %lu", srcpath,
+		    (unsigned long)task->uid);
+		pw = NULL;
+		task->uid = st.st_uid;
+		task->gid = st.st_gid;
+	} else {
+		strlcpy(task->user, pw->pw_name, sizeof task->user);
+		task->uid = pw->pw_uid;
+		task->gid = pw->pw_gid;
+	}
 	task->pid = -1;
 	if (strlcpy(task->srcpath, srcpath, sizeof task->srcpath) >=
 	    sizeof task->srcpath)
@@ -233,6 +247,10 @@ tsdfx_copy_delete(struct copy_task *task)
 int
 tsdfx_copy_start(struct copy_task *task)
 {
+#if HAVE_INITGROUPS && HAVE_GETGROUPS
+	int ngroups;
+#endif
+	int ret;
 
 	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
 
@@ -262,9 +280,22 @@ tsdfx_copy_start(struct copy_task *task)
 #endif
 
 		/* drop privileges */
-		/* XXX hard error? */
-		setgid(task->gid);
-		setuid(task->uid);
+#if HAVE_SETGROUPS
+		ret = setgroups(1, &task->gid);
+#else
+		ret = setgid(task->gid);
+#endif
+		if (ret != 0)
+			WARNING("failed to set process group");
+#if HAVE_INITGROUPS
+		if (*task->user && ret == 0)
+			if ((ret = initgroups(task->user, task->gid)) != 0)
+				WARNING("failed to set additional groups");
+#endif
+		if (ret == 0 && (ret = setuid(task->uid)) != 0)
+			WARNING("failed to set process user");
+		if (ret != 0)
+			_exit(1);
 		if (geteuid() == 0)
 			WARNING("copying %s with uid 0", task->srcpath);
 		if (getegid() == 0)
