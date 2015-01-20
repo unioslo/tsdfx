@@ -95,6 +95,9 @@ int copy_running;
 /* max concurrent copy tasks */
 int tsdfx_copy_max_tasks = 8;
 
+/* full path to copier binary */
+const char *tsdfx_copier;
+
 /*
  * Return the index of the first copy task that matches the specified
  * source and / or destination.
@@ -247,9 +250,6 @@ tsdfx_copy_delete(struct copy_task *task)
 int
 tsdfx_copy_start(struct copy_task *task)
 {
-#if HAVE_INITGROUPS && HAVE_GETGROUPS
-	int ngroups;
-#endif
 	int ret;
 
 	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
@@ -305,8 +305,13 @@ tsdfx_copy_start(struct copy_task *task)
 		umask(TSDFX_COPY_UMASK);
 
 		/* run the copy task */
-		_exit(tsdfx_dryrun ? 0 :
-		    !!tsdfx_copier(task->srcpath, task->dstpath));
+		if (tsdfx_dryrun)
+			_exit(0);
+		execl(tsdfx_copier, tsdfx_copier,
+		    task->srcpath, task->dstpath,
+		    NULL);
+		ERROR("failed to execute copier process");
+		_exit(1);
 	}
 
 	/* parent */
@@ -536,6 +541,13 @@ int
 tsdfx_copy_init(void)
 {
 
-	/* nothing for now */
+	if (tsdfx_copier == NULL &&
+	    (tsdfx_copier = getenv("TSDFX_COPIER")) == NULL &&
+	    access(tsdfx_copier = "/usr/libexec/tsdfx-copier", R_OK|X_OK) != 0 &&
+	    access(tsdfx_copier = "/usr/local/libexec/tsdfx-copier", R_OK|X_OK) != 0 &&
+	    access(tsdfx_copier = "/opt/tsd/libexec/tsdfx-copier", R_OK|X_OK) != 0) {
+		ERROR("failed to locate copier child");
+		return (-1);
+	}
 	return (0);
 }

@@ -46,6 +46,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -53,8 +54,6 @@
 #include <tsd/log.h>
 #include <tsd/sha1.h>
 #include <tsd/strutil.h>
-
-#include "tsdfx.h"
 
 static mode_t mumask;
 
@@ -472,4 +471,40 @@ fail:
 		copyfile_close(dst);
 	errno = serrno;
 	return (-1);
+}
+
+static void
+usage(void)
+{
+
+	fprintf(stderr, "usage: tsdfx-copier [-v] src dst\n");
+	exit(1);
+}
+
+int
+main(int argc, char *argv[])
+{
+	int opt;
+
+	if (getuid() == 0 || geteuid() == 0)
+		WARNING("running as root");
+
+	while ((opt = getopt(argc, argv, "v")) != -1)
+		switch (opt) {
+		case 'v':
+			++tsd_log_verbose;
+			break;
+		default:
+			usage();
+		}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 2)
+		usage();
+
+	if (tsdfx_copier(argv[0], argv[1]) != 0)
+		exit(1);
+	exit(0);
 }

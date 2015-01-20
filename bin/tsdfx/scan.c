@@ -100,6 +100,9 @@ int scan_running;
 /* max concurrent scan tasks */
 int tsdfx_scan_max_tasks = 8;
 
+/* full path to scanner binary */
+const char *tsdfx_scanner;
+
 static inline void tsdfx_scan_invariant(const struct scan_task *);
 static inline int tsdfx_scan_find(const struct scan_task *);
 
@@ -394,28 +397,30 @@ tsdfx_scan_start(struct scan_task *task)
 			_exit(1);
 		}
 
-		/* not root */
-		if (geteuid() != 0)
-			_exit(!!tsdfx_scanner("."));
+		if (geteuid() == 0) {
+			/* chroot */
+			if (chroot(task->path) != 0) {
+				WARNING("%s: %s", task->path, strerror(errno));
+				_exit(1);
+			}
 
-		/* chroot */
-		if (chroot(task->path) != 0) {
-			WARNING("%s: %s", task->path, strerror(errno));
-			_exit(1);
+			/* drop privileges */
+#if 0
+			if (task->st.st_uid == 0)
+				WARNING("scanning %s with uid 0", task->path);
+			if (task->st.st_gid == 0)
+				WARNING("scanning %s with gid 0", task->path);
+#endif
+			setgid(task->st.st_gid);
+			setuid(task->st.st_uid);
 		}
 
-		/* drop privileges */
-#if 0
-		if (task->st.st_uid == 0)
-			WARNING("scanning %s with uid 0", task->path);
-		if (task->st.st_gid == 0)
-			WARNING("scanning %s with gid 0", task->path);
-#endif
-		setgid(task->st.st_gid);
-		setuid(task->st.st_uid);
-
 		/* run the scan task */
-		_exit(!!tsdfx_scanner("."));
+		execl(tsdfx_scanner, tsdfx_scanner,
+		    ".",
+		    NULL);
+		ERROR("failed to execute scanner process");
+		_exit(1);
 	}
 
 	/* parent */
@@ -687,6 +692,14 @@ int
 tsdfx_scan_init(void)
 {
 
+	if (tsdfx_scanner == NULL &&
+	    (tsdfx_scanner = getenv("TSDFX_SCANNER")) == NULL &&
+	    access(tsdfx_scanner = "/usr/libexec/tsdfx-scanner", R_OK|X_OK) != 0 &&
+	    access(tsdfx_scanner = "/usr/local/libexec/tsdfx-scanner", R_OK|X_OK) != 0 &&
+	    access(tsdfx_scanner = "/opt/tsd/libexec/tsdfx-scanner", R_OK|X_OK) != 0) {
+		ERROR("failed to locate scanner child");
+		return (-1);
+	}
 	if (regcomp(&scan_regex, SCAN_REGEX, REG_EXTENDED|REG_NOSUB) != 0)
 		return (-1);
 	return (0);

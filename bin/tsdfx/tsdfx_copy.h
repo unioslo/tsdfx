@@ -46,6 +46,4 @@ int tsdfx_copy_init(void);
 
 int tsdfx_copy_wrap(const char *, const char *, const char *, const char *);
 
-int tsdfx_copier(const char *, const char *);
-
 #endif

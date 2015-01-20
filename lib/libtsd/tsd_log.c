@@ -39,6 +39,9 @@
 
 #include <tsd/log.h>
 
+int tsd_log_quiet = 0;
+int tsd_log_verbose = 0;
+
 /*
  * Log a message.
  *

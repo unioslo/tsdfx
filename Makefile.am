@@ -1,3 +1,3 @@
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = lib bin
+SUBDIRS = lib libexec bin
 EXTRA_DIST = HISTORY INSTALL LICENSE autogen.sh

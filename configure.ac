@@ -60,9 +60,12 @@ AC_ARG_ENABLE([werror],
 AC_CONFIG_FILES([
     Makefile
     include/Makefile
-    bin/Makefile
-    bin/tsdfx/Makefile
     lib/Makefile
     lib/libtsd/Makefile
+    bin/Makefile
+    bin/tsdfx/Makefile
+    libexec/Makefile
+    libexec/scanner/Makefile
+    libexec/copier/Makefile
 ])
 AC_OUTPUT

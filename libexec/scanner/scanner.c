@@ -45,10 +45,9 @@
 #include <unistd.h>
 
 #include <tsd/ctype.h>
+#include <tsd/log.h>
 #include <tsd/sbuf.h>
 #include <tsd/strutil.h>
-
-#include "tsdfx.h"
 
 struct scan_entry {
 	struct sbuf *path;
@@ -280,4 +279,40 @@ tsdfx_scanner(const char *path)
 	assert(scan_todo == NULL && scan_tail == NULL);
 	tsdfx_scan_cleanup();
 	return (0);
+}
+
+static void
+usage(void)
+{
+
+	fprintf(stderr, "usage: tsdfx-scanner [-v] path\n");
+	exit(1);
+}
+
+int
+main(int argc, char *argv[])
+{
+	int opt;
+
+	if (getuid() == 0 || geteuid() == 0)
+		WARNING("running as root");
+
+	while ((opt = getopt(argc, argv, "v")) != -1)
+		switch (opt) {
+		case 'v':
+			++tsd_log_verbose;
+			break;
+		default:
+			usage();
+		}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1)
+		usage();
+
+	if (tsdfx_scanner(argv[0]) != 0)
+		exit(1);
+	exit(0);
 }

@@ -62,7 +62,7 @@ signal_handler(int sig)
 }
 
 /*
- *
+ * Initialization
  */
 int
 tsdfx_init(const char *mapfile)

@@ -48,14 +48,11 @@
 extern char **environ;
 #endif
 
-int tsdfx_quiet = 0;
-int tsdfx_verbose = 0;
-
 static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx [-1nv] -m mapfile\n");
+	fprintf(stderr, "usage: tsdfx [-1nv] [-C copier] [-S scanner] -m mapfile\n");
 	exit(1);
 }
 
@@ -73,16 +70,22 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "1m:nv")) != -1)
+	while ((opt = getopt(argc, argv, "1C:m:nS:v")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
+			break;
+		case 'C':
+			tsdfx_copier = optarg;
 			break;
 		case 'm':
 			mapfile = optarg;
 			break;
 		case 'n':
 			++tsdfx_dryrun;
+			break;
+		case 'S':
+			tsdfx_scanner = optarg;
 			break;
 		case 'v':
 			++tsdfx_verbose;
@@ -110,7 +113,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (tsdfx_log_init() != 0)
+	if (tsd_log_init() != 0)
 		exit(1);
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);
