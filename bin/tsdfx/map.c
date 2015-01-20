@@ -155,7 +155,7 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	int len;
 
 	if ((f = fopen(fn, "r")) == NULL) {
-		ERROR("%s", fn);
+		ERROR("%s: %s", fn, strerror(errno));
 		return (-1);
 	}
 	words = NULL;
