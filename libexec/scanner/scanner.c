@@ -294,6 +294,7 @@ main(int argc, char *argv[])
 {
 	int opt;
 
+	tsd_log_init();
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 

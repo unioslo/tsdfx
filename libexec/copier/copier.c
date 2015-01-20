@@ -55,6 +55,8 @@
 #include <tsd/sha1.h>
 #include <tsd/strutil.h>
 
+static int tsdfx_dryrun;
+
 static mode_t mumask;
 
 /* XXX make this a configuration parameter */
@@ -378,6 +380,23 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	}
 	VERBOSE("%s to %s", srcfn, dstfn);
 
+	/*
+	 * It would be nice to have a fully implemented dry-run mode:
+	 *
+	 * - Check that we have permission to create or write to the
+         *   destination file.
+	 * - If the destination file exists, open it read-only, otherwise
+         *   open /dev/null.
+	 * - Read and compare as usual, but do not write.
+	 * - Do not set mode and times at the end.
+	 *
+	 * Until we have time to implement this, just sleep and return.
+	 */
+	if (tsdfx_dryrun) {
+		sleep(5);
+		return (0);
+	}
+
 	/* what's my umask? */
 	umask(mumask = umask(0));
 
@@ -477,7 +496,7 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-copier [-v] src dst\n");
+	fprintf(stderr, "usage: tsdfx-copier [-nv] src dst\n");
 	exit(1);
 }
 
@@ -486,11 +505,15 @@ main(int argc, char *argv[])
 {
 	int opt;
 
+	tsd_log_init();
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
-	while ((opt = getopt(argc, argv, "v")) != -1)
+	while ((opt = getopt(argc, argv, "nv")) != -1)
 		switch (opt) {
+		case 'n':
+			++tsdfx_dryrun;
+			break;
 		case 'v':
 			++tsd_log_verbose;
 			break;
