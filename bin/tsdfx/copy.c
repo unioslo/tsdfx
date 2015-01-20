@@ -250,7 +250,8 @@ tsdfx_copy_delete(struct copy_task *task)
 int
 tsdfx_copy_start(struct copy_task *task)
 {
-	int ret;
+	const char *argv[6];
+	int argc, ret;
 
 	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
 
@@ -280,22 +281,25 @@ tsdfx_copy_start(struct copy_task *task)
 #endif
 
 		/* drop privileges */
+		if (geteuid() != task->uid || getuid() != task->uid ||
+		    getegid() != task->gid || getgid() != task->gid) {
 #if HAVE_SETGROUPS
-		ret = setgroups(1, &task->gid);
+			ret = setgroups(1, &task->gid);
 #else
-		ret = setgid(task->gid);
+			ret = setgid(task->gid);
 #endif
-		if (ret != 0)
-			WARNING("failed to set process group");
+			if (ret != 0)
+				WARNING("failed to set process group");
 #if HAVE_INITGROUPS
-		if (*task->user && ret == 0)
-			if ((ret = initgroups(task->user, task->gid)) != 0)
-				WARNING("failed to set additional groups");
+			if (*task->user && ret == 0)
+				if ((ret = initgroups(task->user, task->gid)) != 0)
+					WARNING("failed to set additional groups");
 #endif
-		if (ret == 0 && (ret = setuid(task->uid)) != 0)
-			WARNING("failed to set process user");
-		if (ret != 0)
-			_exit(1);
+			if (ret == 0 && (ret = setuid(task->uid)) != 0)
+				WARNING("failed to set process user");
+			if (ret != 0)
+				_exit(1);
+		}
 		if (geteuid() == 0)
 			WARNING("copying %s with uid 0", task->srcpath);
 		if (getegid() == 0)
@@ -305,11 +309,17 @@ tsdfx_copy_start(struct copy_task *task)
 		umask(TSDFX_COPY_UMASK);
 
 		/* run the copy task */
+		argc = 0;
+		argv[argc++] = tsdfx_copier;
 		if (tsdfx_dryrun)
-			_exit(0);
-		execl(tsdfx_copier, tsdfx_copier,
-		    task->srcpath, task->dstpath,
-		    NULL);
+			argv[argc++] = "-n";
+		if (tsdfx_verbose)
+			argv[argc++] = "-v";
+		argv[argc++] = task->srcpath;
+		argv[argc++] = task->dstpath;
+		argv[argc] = NULL;
+		/* XXX should clean the environment */
+		execv(tsdfx_copier, (char *const *)argv);
 		ERROR("failed to execute copier process");
 		_exit(1);
 	}
@@ -498,7 +508,8 @@ tsdfx_copy_sched(void)
 	for (i = 0; i < copy_len; ++i) {
 		switch (copy_tasks[i]->state) {
 		case TASK_IDLE:
-			if (tsdfx_copy_start(copy_tasks[i]) != 0)
+			if (copy_running < tsdfx_copy_max_tasks &&
+			    tsdfx_copy_start(copy_tasks[i]) != 0)
 				WARNING("failed to start task: %s",
 				    strerror(errno));
 			break;

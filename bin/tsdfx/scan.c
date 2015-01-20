@@ -348,7 +348,8 @@ fail:
 int
 tsdfx_scan_start(struct scan_task *task)
 {
-	int pd[2];
+	const char *argv[4];
+	int argc, pd[2];
 
 	VERBOSE("%s", task->path);
 	tsdfx_scan_invariant(task);
@@ -416,9 +417,14 @@ tsdfx_scan_start(struct scan_task *task)
 		}
 
 		/* run the scan task */
-		execl(tsdfx_scanner, tsdfx_scanner,
-		    ".",
-		    NULL);
+		argc = 0;
+		argv[argc++] = tsdfx_scanner;
+		if (tsdfx_verbose)
+			argv[argc++] = "-v";
+		argv[argc++] = ".";
+		argv[argc] = NULL;
+		/* XXX should clean the environment */
+		execv(tsdfx_scanner, (char * const *)argv);
 		ERROR("failed to execute scanner process");
 		_exit(1);
 	}
