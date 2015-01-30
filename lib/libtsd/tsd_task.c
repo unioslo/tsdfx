@@ -88,6 +88,7 @@ tsd_task_create(const char *name, tsd_task_func *func, void *ud)
 	tsd_task_clearcred(t);
 	t->func = func;
 	t->pid = -1;
+	t->pin = t->pout = t->perr = -1;
 	t->ud = ud;
 	VERBOSE("%s(\"%s\") = %p", __func__, name, t);
 	return (t);
@@ -105,6 +106,8 @@ tsd_task_destroy(struct tsd_task *t)
 		return;
 	if (t->state == TASK_RUNNING)
 		tsd_task_stop(t);
+	if (t->set != NULL)
+		tsd_tset_remove(t->set, t);
 	/* assert(t->state != TASK_STOPPING); */
 	memset(t, 0, sizeof *t);
 	free(t);
@@ -164,7 +167,13 @@ tsd_task_setcred(struct tsd_task *t, uid_t uid, gid_t *gids, int ngids)
 int
 tsd_task_start(struct tsd_task *t)
 {
-	int ret;
+	int pin[2] = { -1, -1 };
+	int pout[2] = { -1, -1 };
+	int perr[2] = { -1, -1 };
+	int ret, serrno;
+#if !HAVE_CLOSEFROM
+	int fd, maxfd;
+#endif
 
 	VERBOSE("%s(%p)", __func__, t);
 
@@ -174,6 +183,13 @@ tsd_task_start(struct tsd_task *t)
 		return (-1);
 	t->state = TASK_STARTING;
 
+	/* prepare file descriptors */
+	if (pipe(pin) != 0 || pipe(pout) != 0 || pipe(perr) != 0)
+		goto fail;
+	t->pin = pin[1];
+	t->pout = pout[0];
+	t->perr = perr[0];
+
 	/* fork the child */
 	fflush(NULL);
 	if ((t->pid = fork()) < 0)
@@ -181,15 +197,27 @@ tsd_task_start(struct tsd_task *t)
 
 	/* child */
 	if (t->pid == 0) {
-//		VERBOSE("copy child for %s", t->name);
-#if HAVE_SETPROCTITLE
-		/* set process title if possible */
-		setproctitle("%s", t->name);
+		/* set up stdin/out/err and close everything else */
+#if HAVE_FPURGE
+		fpurge(stdin);
+#endif
+		if (dup2(pin[0], STDIN_FILENO) != 0 ||
+		    dup2(pout[1], STDOUT_FILENO) != 0 ||
+		    dup2(perr[1], STDERR_FILENO) != 0) {
+			ERROR("failed to set up standard file descriptors");
+			_exit(1);
+		}
+#if HAVE_CLOSEFROM
+		closefrom(3);
+#else
+		maxfd = getdtablesize();
+		for (fd = 3; fd < maxfd; ++fd)
+			close(fd);
 #endif
 
-#if HAVE_CLOSEFROM
-		/* we really really need a linux alternative... */
-		closefrom(3);
+		/* set process title if possible */
+#if HAVE_SETPROCTITLE
+		setproctitle("%s", t->name);
 #endif
 
 		/* drop privileges */
@@ -217,12 +245,22 @@ tsd_task_start(struct tsd_task *t)
 	}
 
 	/* parent */
-//	++copy_running;
-//	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	t->state = TASK_RUNNING;
+	if (t->set != NULL)
+		t->set->nrunning++;
 	return (0);
 fail:
+	serrno = errno;
 	t->state = TASK_DEAD;
+	t->pid = -1;
+	close(pin[0]);
+	close(pin[1]);
+	close(pout[0]);
+	close(pout[1]);
+	close(perr[0]);
+	close(perr[1]);
+	t->pin = t->pout = t->perr = -1;
+	errno = serrno;
 	return (-1);
 }
 
@@ -265,9 +303,13 @@ tsd_task_stop(struct tsd_task *t)
 	}
 
 	/* in summary... */
-//	--copy_running;
-//	VERBOSE("%d jobs, %d running", copy_len, copy_running);
 	t->pid = -1;
+	close(t->pin);
+	close(t->pout);
+	close(t->perr);
+	t->pin = t->pout = t->perr = -1;
+	if (t->set != NULL)
+		t->set->nrunning--;
 	if (t->state != TASK_STOPPED)
 		return (-1);
 	return (0);

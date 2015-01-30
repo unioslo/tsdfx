@@ -63,6 +63,9 @@ struct tsd_task {
 	tsd_task_func		*func;
 	pid_t			 pid;
 	int			 status;
+	int			 pin;
+	int			 pout;
+	int			 perr;
 
 	/* task set and queue */
 	struct tsd_tset		*set;
@@ -78,6 +81,7 @@ struct tsd_tset {
 	char			 name[64];
 	struct tsd_task		*tasks[256];
 	unsigned int		 ntasks;
+	unsigned int		 nrunning;
 };
 
 struct tsd_tqueue {

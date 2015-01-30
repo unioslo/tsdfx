@@ -96,6 +96,8 @@ tsd_tset_insert(struct tsd_tset *ts, struct tsd_task *t)
 	*tpp = t;
 	t->set = ts;
 	ts->ntasks++;
+	if (t->state == TASK_RUNNING)
+		ts->nrunning++;
 	return (0);
 }
 
@@ -116,6 +118,8 @@ tsd_tset_remove(struct tsd_tset *ts, struct tsd_task *t)
 			t->snext = NULL;
 			t->set = NULL;
 			ts->ntasks--;
+			if (t->state == TASK_RUNNING)
+				ts->nrunning--;
 			return (0);
 		}
 	}
