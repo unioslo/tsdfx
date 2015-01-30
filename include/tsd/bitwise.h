@@ -1,5 +1,6 @@
 /*-
- * Copyright (c) 2013-2014 Universitetet i Oslo
+ * Copyright (c) 2012 The University of Oslo
+ * Copyright (c) 2012 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,23 +31,21 @@
 #ifndef TSD_BITWISE_H_INCLUDED
 #define TSD_BITWISE_H_INCLUDED
 
-#if 1
-static inline uint32_t
-tsd_rol(uint32_t i, int n)
-{
+#define TSD_ROL_ROR(N)							\
+	static inline uint##N##_t rol##N(uint##N##_t i, int n)		\
+	{								\
+		return (i << n | i >> (N - n));				\
+	}								\
+	static inline uint##N##_t ror##N(uint##N##_t i, int n)		\
+	{								\
+		return (i << (N - n) | i >> n);				\
+	}
 
-        return (i << n | i >> (32 - n));
-}
+TSD_ROL_ROR(8);
+TSD_ROL_ROR(16);
+TSD_ROL_ROR(32);
+TSD_ROL_ROR(64);
 
-static inline uint32_t
-tsd_ror(uint32_t i, int n)
-{
-
-        return (i << (32 - n) | i >> n);
-}
-#else
-#define tsd_rol(i, n) ((i) << (n) | (i) >> (32 - (n)))
-#define tsd_ror(i, n) ((i) << (32 - (n)) | (i) >> (n))
-#endif
+#undef TSD_ROL_ROR
 
 #endif
