@@ -8,3 +8,4 @@ noinst_HEADERS += tsd/percent.h
 noinst_HEADERS += tsd/sbuf.h
 noinst_HEADERS += tsd/sha1.h
 noinst_HEADERS += tsd/strutil.h
+noinst_HEADERS += tsd/task.h

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2014 Universitetet i Oslo
+ * Copyright (c) 2015 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,14 +27,71 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_COPY_H_INCLUDED
-#define TSDFX_COPY_H_INCLUDED
-
-struct tsd_task;
-
-int tsdfx_copy_sched(void);
-int tsdfx_copy_init(void);
-
-int tsdfx_copy_wrap(const char *, const char *, const char *);
-
+#ifdef HAVE_CONFIG_H
+# include "config.h"
 #endif
+
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#include <errno.h>
+#include <string.h>
+
+#include <tsd/log.h>
+#include <tsd/task.h>
+
+/*
+ * Create a new task queue
+ */
+struct tsd_taskq *
+tsd_taskq_create(void)
+{
+
+	return (NULL);
+}
+
+/*
+ * Destroy a task queue
+ */
+int
+tsd_taskq_destroy(struct tsd_taskq *tq)
+{
+
+	(void)tq;
+	return (-1);
+}
+
+/*
+ * Add a task to a queue
+ */
+int
+tsd_taskq_insert(struct tsd_taskq *tq, struct tsd_task *t)
+{
+
+	(void)tq;
+	(void)t;
+	return (-1);
+}
+
+/*
+ * Remove a task from its queue
+ */
+int
+tsd_taskq_remove(struct tsd_taskq *tq, struct tsd_task *t)
+{
+
+	(void)tq;
+	(void)t;
+	return (-1);
+}
+
+/*
+ * Get the next runnable task from a queue
+ */
+struct tsd_task *
+tsd_taskq_next(struct tsd_taskq *tq)
+{
+
+	(void)tq;
+	return (NULL);
+}

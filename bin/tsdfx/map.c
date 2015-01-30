@@ -324,8 +324,7 @@ tsdfx_map_iter(void)
 	for (i = 0; i < map_len; ++i) {
 		switch (tsdfx_scan_state(map[i]->task)) {
 		case TASK_FINISHED:
-			tsdfx_copy_wrap(map[i]->name,
-			    map[i]->srcpath, map[i]->dstpath,
+			tsdfx_copy_wrap(map[i]->srcpath, map[i]->dstpath,
 			    tsdfx_scan_result(map[i]->task));
 			tsdfx_scan_reset(map[i]->task);
 			break;

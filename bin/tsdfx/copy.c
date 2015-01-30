@@ -42,10 +42,9 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <grp.h>
 #include <limits.h>
 #include <pwd.h>
-#include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,169 +55,170 @@
 #endif
 
 #include <tsd/log.h>
+#include <tsd/sha1.h>
 #include <tsd/strutil.h>
+#include <tsd/task.h>
 
 #include "tsdfx.h"
-#include "tsdfx_task.h"
 #include "tsdfx_copy.h"
 
 #define TSDFX_COPY_UMASK 007
 
 int tsdfx_dryrun = 0;
 
-struct copy_task {
-	char name[NAME_MAX];
-
+/*
+ * Private data for a copy task
+ */
+struct tsdfx_copy_task_data {
 	/* what to copy */
-	char srcpath[PATH_MAX];
-	char dstpath[PATH_MAX];
-
-	/* place in the task list */
-	int index;
-
-	/* state */
-	enum task_state state;
-
-	/* child process */
-	char user[LOGIN_MAX];
-	uid_t uid;
-	gid_t gid;
-	pid_t pid;
+	char src[PATH_MAX];
+	char dst[PATH_MAX];
 };
 
-/* for our purposes, a doubly-linked list would be more efficient */
-static struct copy_task **copy_tasks;
-static size_t copy_sz;
-static int copy_len;
-int copy_running;
+/*
+ * Task set and queues
+ */
+static struct tsd_tset *tsdfx_copy_tasks;
+// static struct tsd_tqueue *tsdfx_copy_queue[6];
+static unsigned int tsdfx_copy_ntasks;
+static unsigned int tsdfx_copy_nrunning;
 
-/* max concurrent copy tasks */
-int tsdfx_copy_max_tasks = 8;
+/* max concurrent tasks per queue */
+unsigned int tsdfx_copy_max_tasks = 4;
 
 /* full path to copier binary */
 const char *tsdfx_copier;
 
-/*
- * Return the index of the first copy task that matches the specified
- * source and / or destination.
- */
-int
-tsdfx_copy_find(int i, const char *srcpath, const char *dstpath)
-{
+static void tsdfx_copy_name(char *, const char *, const char *);
+static struct tsd_task *tsdfx_copy_find(const char *, const char *);
+static int tsdfx_copy_add(struct tsd_task *);
+static int tsdfx_copy_remove(struct tsd_task *);
+static struct tsd_task *tsdfx_copy_new(const char *, const char *);
+static void tsdfx_copy_delete(struct tsd_task *);
+static void tsdfx_copy_child(void *);
+static int tsdfx_copy_start(struct tsd_task *);
+static int tsdfx_copy_poll(struct tsd_task *);
+static int tsdfx_copy_stop(struct tsd_task *);
 
-	for (; i < copy_len; ++i) {
-		if (srcpath && strcmp(srcpath, copy_tasks[i]->srcpath) != 0)
-			continue;
-		if (dstpath && strcmp(dstpath, copy_tasks[i]->dstpath) != 0)
-			continue;
-		return (i);
+/*
+ * Generate a name for a copy task, consisting of the SHA1 digest of the
+ * NUL-terminated source and destination paths.
+ */
+static void
+tsdfx_copy_name(char *name, const char *src, const char *dst)
+{
+	uint8_t digest[SHA1_DIGEST_LEN];
+	sha1_ctx ctx;
+	unsigned int i;
+
+	sha1_init(&ctx);
+	sha1_update(&ctx, src, strlen(src) + 1);
+	sha1_update(&ctx, dst, strlen(dst) + 1);
+	sha1_final(&ctx, digest);
+	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
+		name[i * 2] = "0123456789abcdef"[digest[i] / 16];
+		name[i * 2 + 1] = "0123456789abcdef"[digest[i] % 16];
 	}
-	return (-1);
+	name[i * 2] = '\0';
+}
+
+/*
+ * Return the first copy task that matches the specified source and / or
+ * destination.
+ */
+static struct tsd_task *
+tsdfx_copy_find(const char *src, const char *dst)
+{
+	char name[NAME_MAX];
+
+	tsdfx_copy_name(name, src, dst);
+	return (tsd_tset_find(tsdfx_copy_tasks, name));
 }
 
 /*
  * Add a task to the task list.
  */
-int
-tsdfx_copy_add(struct copy_task *task)
+static int
+tsdfx_copy_add(struct tsd_task *t)
 {
-	struct copy_task **tasks;
-	size_t sz;
+	struct tsdfx_copy_task_data *ctd = t->ud;
 
-	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
-
-	/* make room */
-	while (copy_len >= (int)copy_sz) {
-		sz = copy_sz ? copy_sz * 2 : 16;
-		if ((tasks = realloc(copy_tasks, sz * sizeof *tasks)) == NULL)
-			return (-1);
-		memset(tasks + copy_sz, 0, (sz - copy_sz) * sizeof *tasks);
-		copy_tasks = tasks;
-		copy_sz = sz;
-	}
-
-	/* append the task to the list */
-	assert(copy_len + 1 <= (int)copy_sz);
-	copy_tasks[copy_len] = task;
-	task->index = copy_len;
-	++copy_len;
-	VERBOSE("%d jobs, %d running", copy_len, copy_running);
-	return (task->index);
+	VERBOSE("%s -> %s", ctd->src, ctd->dst);
+	if (tsd_tset_insert(tsdfx_copy_tasks, t) != 0)
+		return (-1);
+	tsdfx_copy_ntasks++;
+	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	return (0);
 }
 
 /*
  * Remove a task from the task list.
  */
-int
-tsdfx_copy_remove(struct copy_task *task)
+static int
+tsdfx_copy_remove(struct tsd_task *t)
 {
-	int i;
+	struct tsdfx_copy_task_data *ctd = t->ud;
 
-	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
-
-	i = task->index;
-	if (copy_tasks[i] != task)
+	VERBOSE("%s -> %s", ctd->src, ctd->dst);
+	if (tsd_tset_remove(tsdfx_copy_tasks, t) != 0)
 		return (-1);
-	task->index = -1;
-	if (i + 1 < copy_len)
-		memmove(copy_tasks + i, copy_tasks + i + 1,
-		    (copy_len - (i + 1)) * sizeof *copy_tasks);
-	--copy_len;
-	memset(copy_tasks + copy_len, 0, sizeof *copy_tasks);
-	for (; i < copy_len; ++i)
-		copy_tasks[i]->index = i;
-	VERBOSE("%d jobs, %d running", copy_len, copy_running);
+	tsdfx_copy_ntasks--;
+	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
 	return (0);
 }
 
 /*
  * Prepare a copy task.
- * XXX inefficient deduplication, it would be better to lstat the source
- * file and look it up by st_dev / st_ino.
  */
-struct copy_task *
-tsdfx_copy_new(const char *name, const char *srcpath, const char *dstpath)
+static struct tsd_task *
+tsdfx_copy_new(const char *src, const char *dst)
 {
-	struct copy_task *task;
+	char name[NAME_MAX];
+	struct tsdfx_copy_task_data *ctd = NULL;
+	struct tsd_task *t = NULL;
 	struct stat st;
 	struct passwd *pw;
 	int serrno;
 
-	VERBOSE("%s -> %s", srcpath, dstpath);
-	if (lstat(srcpath, &st) == -1)
-		return (NULL);
-	if ((task = calloc(1, sizeof *task)) == NULL)
-		return (NULL);
-	if (strlcpy(task->name, name, sizeof task->name) >= sizeof task->name) {
+	/* check for existing task */
+	tsdfx_copy_name(name, src, dst);
+	if (tsd_tset_find(tsdfx_copy_tasks, name) != NULL) {
+		errno = EEXIST;
+		goto fail;
+	}
+
+	/* check that the source exists */
+	if (lstat(src, &st) == -1)
+		goto fail;
+
+	/* create task data */
+	if ((ctd = calloc(1, sizeof *ctd)) == NULL)
+		goto fail;
+	if (strlcpy(ctd->src, src, sizeof ctd->src) >= sizeof ctd->src ||
+	    strlcpy(ctd->dst, dst, sizeof ctd->dst) >= sizeof ctd->dst) {
 		errno = ENAMETOOLONG;
 		goto fail;
 	}
-	if ((pw = getpwuid(st.st_uid)) == NULL ||
-	    strlen(pw->pw_name) >= sizeof task->user) {
-		WARNING("%s is owned by unknown or invalid user %lu", srcpath,
-		    (unsigned long)task->uid);
-		pw = NULL;
-		task->uid = st.st_uid;
-		task->gid = st.st_gid;
+
+	/* create task and set credentials */
+	if ((t = tsd_task_create(name, tsdfx_copy_child, ctd)) == NULL)
+		goto fail;
+	if ((pw = getpwuid(st.st_uid)) != NULL) {
+		if (tsd_task_setuser(t, pw->pw_name) != 0)
+			goto fail;
 	} else {
-		strlcpy(task->user, pw->pw_name, sizeof task->user);
-		task->uid = pw->pw_uid;
-		task->gid = pw->pw_gid;
+		if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
+			goto fail;
 	}
-	task->pid = -1;
-	if (strlcpy(task->srcpath, srcpath, sizeof task->srcpath) >=
-	    sizeof task->srcpath)
+	if (tsdfx_copy_add(t) != 0)
 		goto fail;
-	if (strlcpy(task->dstpath, dstpath, sizeof task->dstpath) >=
-	    sizeof task->dstpath)
-		goto fail;
-	if (tsdfx_copy_add(task) < 0)
-		goto fail;
-	task->state = TASK_IDLE;
-	return (task);
+	return (t);
 fail:
 	serrno = errno;
-	free(task);
+	if (ctd != NULL)
+		free(ctd);
+	if (t != NULL)
+		tsd_task_destroy(t);
 	errno = serrno;
 	return (NULL);
 }
@@ -226,176 +226,99 @@ fail:
 /*
  * Delete a copy task.
  */
-void
-tsdfx_copy_delete(struct copy_task *task)
+static void
+tsdfx_copy_delete(struct tsd_task *t)
 {
+	struct tsdfx_copy_task_data *ctd = t->ud;
 
-	if (task == NULL)
+	if (t == NULL)
 		return;
-	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
-	if (task->pid != -1)
-		tsdfx_copy_stop(task);
-	tsdfx_copy_remove(task);
-	memset(task, 0, sizeof task);
-	free(task);
+	VERBOSE("%s -> %s", ctd->src, ctd->dst);
+	tsdfx_copy_stop(t);
+	tsdfx_copy_remove(t);
+	tsd_task_destroy(t);
+	free(ctd);
 }
 
 /*
- * Fork a child process and start a copy task inside.
- *
- * It would be great if we could chdir / chroot into the target directory,
- * or something like /var/empty, but we'd have to open the source file
- * (and possibly the destination file as well) before dropping privileges.
+ * Copy task child: execute the copier program.
  */
-int
-tsdfx_copy_start(struct copy_task *task)
+static void
+tsdfx_copy_child(void *ud)
 {
+	struct tsdfx_copy_task_data *ctd = ud;
 	const char *argv[6];
-	int argc, ret;
+	int argc;
 
-	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
+	/* check credentials */
+	if (geteuid() == 0)
+		WARNING("copying %s with uid 0", ctd->src);
+	if (getegid() == 0)
+		WARNING("copying %s with gid 0", ctd->src);
 
-	if (task->state == TASK_RUNNING)
+	/* set safe umask */
+	umask(TSDFX_COPY_UMASK);
+
+	/* run the copy task */
+	argc = 0;
+	argv[argc++] = tsdfx_copier;
+	if (tsdfx_dryrun)
+		argv[argc++] = "-n";
+	if (tsdfx_verbose)
+		argv[argc++] = "-v";
+	argv[argc++] = ctd->src;
+	argv[argc++] = ctd->dst;
+	argv[argc] = NULL;
+	/* XXX should clean the environment */
+	execv(tsdfx_copier, (char *const *)argv);
+	ERROR("failed to execute copier process");
+}
+
+/*
+ * Start a copy task.
+ */
+static int
+tsdfx_copy_start(struct tsd_task *t)
+{
+	struct tsdfx_copy_task_data *ctd = t->ud;
+
+	VERBOSE("%s -> %s", ctd->src, ctd->dst);
+	if (t->state == TASK_RUNNING)
 		return (0);
-	if (task->state != TASK_IDLE)
+	if (tsd_task_start(t) != 0)
 		return (-1);
-	task->state = TASK_STARTING;
-
-	/* fork the copier child */
-	fflush(NULL);
-	if ((task->pid = fork()) < 0)
-		goto fail;
-
-	/* child */
-	if (task->pid == 0) {
-		VERBOSE("copy child for %s", task->name);
-#if HAVE_SETPROCTITLE
-		/* set process title if possible */
-		setproctitle("[%s] copy %s to %s", task->name,
-		    task->srcpath, task->dstpath);
-#endif
-
-#if HAVE_CLOSEFROM
-		/* we really really need a linux alternative... */
-		closefrom(3);
-#endif
-
-		/* drop privileges */
-		if (geteuid() != task->uid || getuid() != task->uid ||
-		    getegid() != task->gid || getgid() != task->gid) {
-#if HAVE_SETGROUPS
-			ret = setgroups(1, &task->gid);
-#else
-			ret = setgid(task->gid);
-#endif
-			if (ret != 0)
-				WARNING("failed to set process group");
-#if HAVE_INITGROUPS
-			if (*task->user && ret == 0)
-				if ((ret = initgroups(task->user, task->gid)) != 0)
-					WARNING("failed to set additional groups");
-#endif
-			if (ret == 0 && (ret = setuid(task->uid)) != 0)
-				WARNING("failed to set process user");
-			if (ret != 0)
-				_exit(1);
-		}
-		if (geteuid() == 0)
-			WARNING("copying %s with uid 0", task->srcpath);
-		if (getegid() == 0)
-			WARNING("copying %s with gid 0", task->srcpath);
-
-		/* set safe umask */
-		umask(TSDFX_COPY_UMASK);
-
-		/* run the copy task */
-		argc = 0;
-		argv[argc++] = tsdfx_copier;
-		if (tsdfx_dryrun)
-			argv[argc++] = "-n";
-		if (tsdfx_verbose)
-			argv[argc++] = "-v";
-		argv[argc++] = task->srcpath;
-		argv[argc++] = task->dstpath;
-		argv[argc] = NULL;
-		/* XXX should clean the environment */
-		execv(tsdfx_copier, (char *const *)argv);
-		ERROR("failed to execute copier process");
-		_exit(1);
-	}
-
-	/* parent */
-	++copy_running;
-	VERBOSE("%d jobs, %d running", copy_len, copy_running);
-	task->state = TASK_RUNNING;
+	tsdfx_copy_nrunning++;
+	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
 	return (0);
-fail:
-	task->state = TASK_DEAD;
-	return (-1);
 }
 
 /*
  * Poll the state of a child process.
  */
-int
-tsdfx_copy_poll(struct copy_task *task)
+static int
+tsdfx_copy_poll(struct tsd_task *t)
 {
-	enum task_state state;
-	int ret;
 
-	state = task->state;
-	ret = tsdfx_task_poll(task->pid, &task->state);
-	if (state == TASK_RUNNING && task->state != state) {
-		--copy_running;
-		VERBOSE("%d jobs, %d running", copy_len, copy_running);
-	}
-	return (ret);
+	if (tsd_task_poll(t) != 0)
+		return (-1);
+	if (t->state != TASK_RUNNING)
+		tsdfx_copy_nrunning--;
+	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	return (0);
 }
 
 /*
- * Stop a copy task.  We make three attempts: first we check to see if the
- * child is already dead.  Then we wait 10 ms and check again; if it still
- * isn't dead, we send a SIGTERM, wait 10 ms, and check again.  If it
- * still isn't dead after the SIGTERM, we send a SIGKILL, wait 10 ms, and
- * try one last time.
+ * Stop a copy task.
  */
-int
-tsdfx_copy_stop(struct copy_task *task)
+static int
+tsdfx_copy_stop(struct tsd_task *t)
 {
-	int sig[] = { SIGCONT, SIGTERM, SIGKILL, -1 };
-	int i;
+	struct tsdfx_copy_task_data *ctd = t->ud;
 
-	VERBOSE("%s -> %s", task->srcpath, task->dstpath);
-
-	/* check current state */
-	if (task->state != TASK_RUNNING)
+	VERBOSE("%s -> %s", ctd->src, ctd->dst);
+	if (tsd_task_stop(t) != 0)
 		return (-1);
-	task->state = TASK_STOPPING;
-	--copy_running;
-	VERBOSE("%d jobs, %d running", copy_len, copy_running);
-
-	/* reap the child */
-	for (i = 0; sig[i] >= 0; ++i) {
-		tsdfx_copy_poll(task);
-		if (task->state != TASK_STOPPING)
-			break;
-		/* not dead yet; kill, wait 10 ms and retry */
-		if (sig[i])
-			kill(task->pid, sig[i]);
-		kill(task->pid, SIGCONT);
-		usleep(10000);
-	}
-
-	/* either done or gave up */
-	if (sig[i] < 0) {
-		WARNING("gave up waiting for child %d", (int)task->pid);
-		task->state = TASK_DEAD;
-	}
-
-	/* in summary... */
-	task->pid = -1;
-	if (task->state != TASK_STOPPED)
-		return (-1);
+	tsdfx_copy_nrunning--;
 	return (0);
 }
 
@@ -404,8 +327,7 @@ tsdfx_copy_stop(struct copy_task *task)
  * start copy tasks for each file.
  */
 int
-tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
-    const char *files)
+tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 {
 #if HAVE_STATVFS
 	struct statvfs st;
@@ -448,17 +370,17 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 
 		/* log and check for duplicate */
 		VERBOSE("%s -> %s", srcpath, dstpath);
-		if (tsdfx_copy_find(0, srcpath, dstpath) >= 0)
+		if (tsdfx_copy_find(srcpath, dstpath) != NULL)
 			continue;
 
 		/* source must exist */
-		if (stat(srcpath, &srcst) != 0) {
+		if (lstat(srcpath, &srcst) != 0) {
 			WARNING("%s: %s", srcpath, strerror(errno));
 			continue;
 		}
 
 		/* check destination */
-		if (stat(dstpath, &dstst) == 0) {
+		if (lstat(dstpath, &dstst) == 0) {
 			if ((srcst.st_mode & S_IFMT) != (dstst.st_mode & S_IFMT)) {
 				WARNING("%s and %s both exist with different types",
 				    srcpath, dstpath);
@@ -492,57 +414,46 @@ tsdfx_copy_wrap(const char *name, const char *srcdir, const char *dstdir,
 #endif
 
 		/* create task */
-		tsdfx_copy_new(name, srcpath, dstpath);
+		tsdfx_copy_new(srcpath, dstpath);
 	}
 	return (0);
 }
 
 /*
- * Start any scheduled tasks
+ * Monitor running tasks and start any scheduled tasks if possible.
  */
 int
 tsdfx_copy_sched(void)
 {
-	int i;
+	struct tsd_task *t, *tn;
 
-	for (i = 0; i < copy_len; ++i) {
-		switch (copy_tasks[i]->state) {
+	t = tsd_tset_first(tsdfx_copy_tasks);
+	while (t != NULL) {
+		/* look ahead so we can safely delete dead tasks */
+		tn = tsd_tset_next(tsdfx_copy_tasks, t);
+		switch (t->state) {
 		case TASK_IDLE:
-			if (copy_running < tsdfx_copy_max_tasks &&
-			    tsdfx_copy_start(copy_tasks[i]) != 0)
+			if (tsdfx_copy_nrunning < tsdfx_copy_max_tasks &&
+			    tsdfx_copy_start(t) != 0)
 				WARNING("failed to start task: %s",
 				    strerror(errno));
 			break;
 		case TASK_RUNNING:
-			/* leave it alone */
+			tsdfx_copy_poll(t);
 			break;
 		case TASK_STOPPED:
 		case TASK_DEAD:
 		case TASK_FINISHED:
 		case TASK_FAILED:
-			tsdfx_copy_delete(copy_tasks[i]);
-			--i; /* XXX hack */
+			tsdfx_copy_delete(t);
 			break;
 		default:
 			/* nothing */
 			break;
 		}
+		t = tn;
 	}
-	return (copy_running);
-}
-
-/*
- * Monitor child processes
- */
-int
-tsdfx_copy_iter(void)
-{
-	int i;
-
-	for (i = 0; i < copy_len; ++i)
-		if (copy_tasks[i]->state == TASK_RUNNING)
-			tsdfx_copy_poll(copy_tasks[i]);
-	return (0);
+	return (tsdfx_copy_nrunning);
 }
 
 /*
@@ -560,5 +471,7 @@ tsdfx_copy_init(void)
 		ERROR("failed to locate copier child");
 		return (-1);
 	}
+	if ((tsdfx_copy_tasks = tsd_tset_create("tsdfx copier")) == NULL)
+		return (-1);
 	return (0);
 }
