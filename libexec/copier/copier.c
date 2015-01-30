@@ -506,7 +506,7 @@ main(int argc, char *argv[])
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
-	while ((opt = getopt(argc, argv, "nv")) != -1)
+	while ((opt = getopt(argc, argv, "hnv")) != -1)
 		switch (opt) {
 		case 'n':
 			++tsdfx_dryrun;

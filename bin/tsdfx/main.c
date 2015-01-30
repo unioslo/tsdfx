@@ -70,7 +70,7 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "1C:m:nS:v")) != -1)
+	while ((opt = getopt(argc, argv, "1C:hm:nS:v")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
