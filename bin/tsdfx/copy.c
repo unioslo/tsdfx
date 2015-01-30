@@ -32,7 +32,6 @@
 #endif
 
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 #if HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
@@ -101,8 +100,7 @@ static int tsdfx_copy_poll(struct tsd_task *);
 static int tsdfx_copy_stop(struct tsd_task *);
 
 /*
- * Generate a name for a copy task, consisting of the SHA1 digest of the
- * NUL-terminated source and destination paths.
+ * Generate a unique name for a copy task.
  */
 static void
 tsdfx_copy_name(char *name, const char *src, const char *dst)
@@ -112,6 +110,7 @@ tsdfx_copy_name(char *name, const char *src, const char *dst)
 	unsigned int i;
 
 	sha1_init(&ctx);
+	sha1_update(&ctx, "copy", sizeof "copy");
 	sha1_update(&ctx, src, strlen(src) + 1);
 	sha1_update(&ctx, dst, strlen(dst) + 1);
 	sha1_final(&ctx, digest);
@@ -448,7 +447,7 @@ tsdfx_copy_sched(void)
 			tsdfx_copy_delete(t);
 			break;
 		default:
-			/* nothing */
+			/* unreachable */
 			break;
 		}
 		t = tn;
