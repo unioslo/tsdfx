@@ -97,8 +97,7 @@ copyfile_open(const char *fn, int mode, int perm)
 	/* allocate state structure */
 	if ((cf = calloc(1, sizeof *cf + BLOCKSIZE)) == NULL)
 		goto fail;
-	if ((cf->sha_ctx = sha1_init()) == NULL)
-		goto fail;
+	sha1_init(&cf->sha_ctx);
 	cf->bufsize = BLOCKSIZE;
 
 	/* copy name, check for trailing /, then strip it off */
@@ -288,7 +287,7 @@ static int
 copyfile_advance(struct copyfile *cf)
 {
 
-	sha1_update(cf->sha_ctx, cf->buf, cf->buflen);
+	sha1_update(&cf->sha_ctx, cf->buf, cf->buflen);
 	cf->offset += cf->buflen;
 	if (fstat(cf->fd, &cf->st) != 0)
 		return (-1);
@@ -325,8 +324,8 @@ copyfile_finish(struct copyfile *cf)
 			return (-1);
 		}
 	}
-	sha1_final(cf->sha_ctx, cf->digest);
-	cf->sha_ctx = NULL;
+	sha1_final(&cf->sha_ctx, cf->digest);
+	memset(&cf->sha_ctx, 0, sizeof cf->sha_ctx);
 	return (0);
 }
 
@@ -337,8 +336,6 @@ copyfile_close(struct copyfile *cf)
 
 	if (cf->fd >= 0)
 		close(cf->fd);
-	if (cf->sha_ctx != NULL)
-		sha1_discard(cf->sha_ctx);
 	memset(cf, 0, sizeof *cf + cf->bufsize);
 	free(cf);
 }

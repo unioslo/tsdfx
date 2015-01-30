@@ -31,49 +31,26 @@
 #ifndef TSD_SHA1_H_INCLUDED
 #define TSD_SHA1_H_INCLUDED
 
-#define SHA1_DIGEST_LEN 20
+#define SHA1_BLOCK_LEN			64
+#define SHA1_DIGEST_LEN			20
 
-typedef void *sha1_ctx;
+#define sha1_digest			tsd_sha1_digest
+#define sha1_ctx			tsd_sha1_ctx
+#define sha1_init			tsd_sha1_init
+#define sha1_update			tsd_sha1_update
+#define sha1_final			tsd_sha1_final
+#define sha1_complete			tsd_sha1_complete
 
-void *tsd_sha1_init(void);
-void tsd_sha1_discard(void *);
-void tsd_sha1_update(void *, const void *, size_t);
-void tsd_sha1_final(void *, void *);
-int tsd_sha1_complete(const void *, size_t, void *);
+typedef struct {
+	uint8_t block[64];
+	uint32_t blocklen;
+	uint32_t h[5];
+	uint64_t bitlen;
+} sha1_ctx;
 
-static inline sha1_ctx
-sha1_init(void)
-{
-
-	return (tsd_sha1_init());
-}
-
-static inline void
-sha1_discard(sha1_ctx ctx)
-{
-
-	tsd_sha1_discard(ctx);
-}
-
-static inline void
-sha1_update(sha1_ctx ctx, const void *msg, size_t msglen)
-{
-
-	tsd_sha1_update(ctx, msg, msglen);
-}
-
-static inline void
-sha1_final(sha1_ctx ctx, void *md)
-{
-
-	tsd_sha1_final(ctx, md);
-}
-
-static inline int
-sha1_complete(const void *msg, size_t msglen, void *md)
-{
-
-	return (tsd_sha1_complete(msg, msglen, md));
-}
+void sha1_init(sha1_ctx *);
+void sha1_update(sha1_ctx *, const void *, size_t);
+void sha1_final(sha1_ctx *, uint8_t *);
+void sha1_complete(const void *, size_t, uint8_t *);
 
 #endif

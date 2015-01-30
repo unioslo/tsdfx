@@ -1,14 +1,13 @@
 /*-
- * Copyright (c) 2012 Universitetet i Oslo
- * Copyright (c) 2012 Dag-Erling Smørgrav
+ * Copyright (c) 2012 The University of Oslo
+ * Copyright (c) 2012-2014 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer
- *    in this position and unchanged.
+ *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
@@ -33,17 +32,17 @@
 # include "config.h"
 #endif
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef HAVE_SYS_ENDIAN_H
+#if HAVE_SYS_ENDIAN_H
 #include <sys/endian.h>
 #endif
 
-#ifdef HAVE_ENDIAN_H
+#if HAVE_ENDIAN_H
+#define _BSD_SOURCE
 #include <endian.h>
 #endif
+
+#include <stdint.h>
+#include <string.h>
 
 #include <tsd/bitwise.h>
 #include <tsd/sha1.h>
@@ -56,68 +55,129 @@ static uint32_t sha1_k[4] = {
 	0x5a827999U, 0x6ed9eba1U, 0x8f1bbcdcU, 0xca62c1d6U,
 };
 
-struct sha1_ctx {
-	uint8_t block[64];
-	size_t blocklen;
-	uint64_t bitlen;
-	uint32_t h[5], k[4];
-};
-
-void *
-tsd_sha1_init(void)
-{
-	struct sha1_ctx *ctx;
-
-	if ((ctx = calloc(1, sizeof *ctx)) == NULL)
-		return (NULL);
-	memcpy(ctx->h, sha1_h, sizeof ctx->h);
-	memcpy(ctx->k, sha1_k, sizeof ctx->k);
-	return (ctx);
-}
-
 void
-tsd_sha1_discard(void *ctxp)
+sha1_init(sha1_ctx *ctx)
 {
-	struct sha1_ctx *ctx = ctxp;
 
 	memset(ctx, 0, sizeof *ctx);
-	free(ctx);
+	memcpy(ctx->h, sha1_h, sizeof ctx->h);
 }
 
-static void
-tsd_sha1_compute(void *ctxp)
-{
-	struct sha1_ctx *ctx = ctxp;
-	uint32_t w[80], a, b, c, d, e, f, temp;
+#define sha1_ch(x, y, z)	((x & y) ^ (~x & z))
+#define sha1_parity(x, y, z)	((x ^ y ^ z))
+#define sha1_maj(x, y, z)	(((x & y) ^ (x & z) ^ (y & z)))
+#define sha1_step(t, a, f, e, w)					\
+	do {								\
+		uint32_t T = rol32(a, 5) + f + e + sha1_k[t/20] + w[t];	\
+		e = d;							\
+		d = c;							\
+		c = rol32(b, 30);					\
+		b = a;							\
+		a = T;							\
+	} while (0)
 
-	memcpy(w, ctx->block, sizeof ctx->block);
+static void
+sha1_compute(sha1_ctx *ctx, const uint8_t *block)
+{
+	uint32_t w[80], a, b, c, d, e;
+
+	memcpy(w, block, 64);
 	for (int i = 0; i < 16; ++i)
 		w[i] = be32toh(w[i]);
 	for (int i = 16; i < 80; ++i) {
 		w[i] = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16];
-		w[i] = tsd_rol(w[i], 1);
+		w[i] = rol32(w[i], 1);
 	}
 	a = ctx->h[0];
 	b = ctx->h[1];
 	c = ctx->h[2];
 	d = ctx->h[3];
 	e = ctx->h[4];
-	for (int t = 0; t < 80; ++t) {
-		if (t < 20)
-			f = (b & c) | ((~b) & d);
-		else if (t < 40)
-			f = b ^ c ^ d;
-		else if (t < 60)
-			f = (b & c) | (b & d) | (c & d);
-		else
-			f = b ^ c ^ d;
-		temp = tsd_rol(a, 5) + f + e + w[t] + ctx->k[t/20];
-		e = d;
-		d = c;
-		c = tsd_ror(b, 2);
-		b = a;
-		a = temp;
-	}
+
+	sha1_step( 0, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 1, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 2, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 3, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 4, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 5, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 6, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 7, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 8, a, sha1_ch(b, c, d), e, w);
+	sha1_step( 9, a, sha1_ch(b, c, d), e, w);
+	sha1_step(10, a, sha1_ch(b, c, d), e, w);
+	sha1_step(11, a, sha1_ch(b, c, d), e, w);
+	sha1_step(12, a, sha1_ch(b, c, d), e, w);
+	sha1_step(13, a, sha1_ch(b, c, d), e, w);
+	sha1_step(14, a, sha1_ch(b, c, d), e, w);
+	sha1_step(15, a, sha1_ch(b, c, d), e, w);
+	sha1_step(16, a, sha1_ch(b, c, d), e, w);
+	sha1_step(17, a, sha1_ch(b, c, d), e, w);
+	sha1_step(18, a, sha1_ch(b, c, d), e, w);
+	sha1_step(19, a, sha1_ch(b, c, d), e, w);
+
+	sha1_step(20, a, sha1_parity(b, c, d), e, w);
+	sha1_step(21, a, sha1_parity(b, c, d), e, w);
+	sha1_step(22, a, sha1_parity(b, c, d), e, w);
+	sha1_step(23, a, sha1_parity(b, c, d), e, w);
+	sha1_step(24, a, sha1_parity(b, c, d), e, w);
+	sha1_step(25, a, sha1_parity(b, c, d), e, w);
+	sha1_step(26, a, sha1_parity(b, c, d), e, w);
+	sha1_step(27, a, sha1_parity(b, c, d), e, w);
+	sha1_step(28, a, sha1_parity(b, c, d), e, w);
+	sha1_step(29, a, sha1_parity(b, c, d), e, w);
+	sha1_step(30, a, sha1_parity(b, c, d), e, w);
+	sha1_step(31, a, sha1_parity(b, c, d), e, w);
+	sha1_step(32, a, sha1_parity(b, c, d), e, w);
+	sha1_step(33, a, sha1_parity(b, c, d), e, w);
+	sha1_step(34, a, sha1_parity(b, c, d), e, w);
+	sha1_step(35, a, sha1_parity(b, c, d), e, w);
+	sha1_step(36, a, sha1_parity(b, c, d), e, w);
+	sha1_step(37, a, sha1_parity(b, c, d), e, w);
+	sha1_step(38, a, sha1_parity(b, c, d), e, w);
+	sha1_step(39, a, sha1_parity(b, c, d), e, w);
+
+	sha1_step(40, a, sha1_maj(b, c, d), e, w);
+	sha1_step(41, a, sha1_maj(b, c, d), e, w);
+	sha1_step(42, a, sha1_maj(b, c, d), e, w);
+	sha1_step(43, a, sha1_maj(b, c, d), e, w);
+	sha1_step(44, a, sha1_maj(b, c, d), e, w);
+	sha1_step(45, a, sha1_maj(b, c, d), e, w);
+	sha1_step(46, a, sha1_maj(b, c, d), e, w);
+	sha1_step(47, a, sha1_maj(b, c, d), e, w);
+	sha1_step(48, a, sha1_maj(b, c, d), e, w);
+	sha1_step(49, a, sha1_maj(b, c, d), e, w);
+	sha1_step(50, a, sha1_maj(b, c, d), e, w);
+	sha1_step(51, a, sha1_maj(b, c, d), e, w);
+	sha1_step(52, a, sha1_maj(b, c, d), e, w);
+	sha1_step(53, a, sha1_maj(b, c, d), e, w);
+	sha1_step(54, a, sha1_maj(b, c, d), e, w);
+	sha1_step(55, a, sha1_maj(b, c, d), e, w);
+	sha1_step(56, a, sha1_maj(b, c, d), e, w);
+	sha1_step(57, a, sha1_maj(b, c, d), e, w);
+	sha1_step(58, a, sha1_maj(b, c, d), e, w);
+	sha1_step(59, a, sha1_maj(b, c, d), e, w);
+
+	sha1_step(60, a, sha1_parity(b, c, d), e, w);
+	sha1_step(61, a, sha1_parity(b, c, d), e, w);
+	sha1_step(62, a, sha1_parity(b, c, d), e, w);
+	sha1_step(63, a, sha1_parity(b, c, d), e, w);
+	sha1_step(64, a, sha1_parity(b, c, d), e, w);
+	sha1_step(65, a, sha1_parity(b, c, d), e, w);
+	sha1_step(66, a, sha1_parity(b, c, d), e, w);
+	sha1_step(67, a, sha1_parity(b, c, d), e, w);
+	sha1_step(68, a, sha1_parity(b, c, d), e, w);
+	sha1_step(69, a, sha1_parity(b, c, d), e, w);
+	sha1_step(70, a, sha1_parity(b, c, d), e, w);
+	sha1_step(71, a, sha1_parity(b, c, d), e, w);
+	sha1_step(72, a, sha1_parity(b, c, d), e, w);
+	sha1_step(73, a, sha1_parity(b, c, d), e, w);
+	sha1_step(74, a, sha1_parity(b, c, d), e, w);
+	sha1_step(75, a, sha1_parity(b, c, d), e, w);
+	sha1_step(76, a, sha1_parity(b, c, d), e, w);
+	sha1_step(77, a, sha1_parity(b, c, d), e, w);
+	sha1_step(78, a, sha1_parity(b, c, d), e, w);
+	sha1_step(79, a, sha1_parity(b, c, d), e, w);
+
 	ctx->h[0] += a;
 	ctx->h[1] += b;
 	ctx->h[2] += c;
@@ -126,66 +186,61 @@ tsd_sha1_compute(void *ctxp)
 }
 
 void
-tsd_sha1_update(void *ctxp, const void *buf, size_t len)
+sha1_update(sha1_ctx *ctx, const void *buf, size_t len)
 {
-	struct sha1_ctx *ctx = ctxp;
 	size_t copylen;
 
 	while (len) {
-		copylen = sizeof ctx->block - ctx->blocklen;
-		if (copylen > len)
-			copylen = len;
-		memcpy(ctx->block + ctx->blocklen, buf, copylen);
-		ctx->blocklen += copylen;
+		if (ctx->blocklen > 0 || len < sizeof ctx->block) {
+			copylen = sizeof ctx->block - ctx->blocklen;
+			if (copylen > len)
+				copylen = len;
+			memcpy(ctx->block + ctx->blocklen, buf, copylen);
+			ctx->blocklen += copylen;
+			if (ctx->blocklen == sizeof ctx->block) {
+				sha1_compute(ctx, ctx->block);
+				ctx->blocklen = 0;
+				memset(ctx->block, 0, sizeof ctx->block);
+			}
+		} else {
+			copylen = sizeof ctx->block;
+			sha1_compute(ctx, buf);
+		}
 		ctx->bitlen += copylen * 8;
 		buf += copylen;
 		len -= copylen;
-		if (ctx->blocklen == 64) {
-			tsd_sha1_compute(ctx);
-			ctx->blocklen = 0;
-			memset(ctx->block, 0, 64);
-		}
 	}
 }
 
 void
-tsd_sha1_final(void *ctxp, void *digest)
+sha1_final(sha1_ctx *ctx, uint8_t *digest)
 {
-	struct sha1_ctx *ctx = ctxp;
 	uint32_t hi, lo;
 
-	if (ctx->blocklen == 64) {
-		tsd_sha1_compute(ctx);
-		ctx->blocklen = 0;
-		memset(ctx->block, 0, 64);
-	}
 	ctx->block[ctx->blocklen++] = 0x80;
 	if (ctx->blocklen > 56) {
-		tsd_sha1_compute(ctx);
+		sha1_compute(ctx, ctx->block);
 		ctx->blocklen = 0;
-		memset(ctx->block, 0, 64);
+		memset(ctx->block, 0, sizeof ctx->block);
 	}
 	hi = htobe32(ctx->bitlen >> 32);
 	lo = htobe32(ctx->bitlen & 0xffffffffUL);
 	memcpy(ctx->block + 56, &hi, 4);
 	memcpy(ctx->block + 60, &lo, 4);
 	ctx->blocklen = 64;
-	tsd_sha1_compute(ctx);
+	sha1_compute(ctx, ctx->block);
 	for (int i = 0; i < 5; ++i)
 		ctx->h[i] = htobe32(ctx->h[i]);
 	memcpy(digest, ctx->h, 20);
 	memset(ctx, 0, sizeof *ctx);
-	free(ctx);
 }
 
-int
-tsd_sha1_complete(const void *buf, size_t len, void *digest)
+void
+sha1_complete(const void *buf, size_t len, uint8_t *digest)
 {
-	void *ctxp;
+	sha1_ctx ctx;
 
-	if ((ctxp = sha1_init()) == NULL)
-		return (-1);
-	sha1_update(ctxp, buf, len);
-	sha1_final(ctxp, digest);
-	return (0);
+	sha1_init(&ctx);
+	sha1_update(&ctx, buf, len);
+	sha1_final(&ctx, digest);
 }
