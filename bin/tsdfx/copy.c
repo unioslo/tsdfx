@@ -80,7 +80,7 @@ struct copy_task {
 	enum task_state state;
 
 	/* child process */
-	char user[LOGIN_MAX];
+	char user[NAME_MAX];
 	uid_t uid;
 	gid_t gid;
 	pid_t pid;

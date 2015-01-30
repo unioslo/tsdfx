@@ -25,12 +25,6 @@ AC_PROG_INSTALL
 # headers
 AC_CHECK_HEADERS([endian.h sys/endian.h sys/statvfs.h])
 
-# macros
-AC_CHECK_DECLS([MAXLOGNAME], [login_max="(MAXLOGNAME-1)"], [login_max=16], [
-#include <sys/param.h>
-])
-AC_DEFINE_UNQUOTED([LOGIN_MAX], [$login_max], [Maximum length of a login name])
-
 # functions
 AC_CHECK_FUNCS([strlcat strlcpy])
 AC_CHECK_FUNCS([closefrom])
