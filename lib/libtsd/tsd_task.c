@@ -303,13 +303,6 @@ tsd_task_stop(struct tsd_task *t)
 	}
 
 	/* in summary... */
-	t->pid = -1;
-	close(t->pin);
-	close(t->pout);
-	close(t->perr);
-	t->pin = t->pout = t->perr = -1;
-	if (t->set != NULL)
-		t->set->nrunning--;
 	if (t->state != TASK_STOPPED)
 		return (-1);
 	return (0);
@@ -336,7 +329,7 @@ tsd_task_poll(struct tsd_task *t)
 		    (unsigned long)t->pid, strerror(errno));
 		t->state = TASK_DEAD;
 		errno = serrno;
-		return (-1);
+		/* fall through */
 	} else if (ret == 0) {
 		/* still running */
 		return (0);
@@ -347,8 +340,7 @@ tsd_task_poll(struct tsd_task *t)
 			t->state = TASK_FAILED;
 		else
 			t->state = TASK_STOPPED;
-		t->pid = -1;
-		return (0);
+		/* fall through */
 	} else {
 		/* wtf? */
 		ERROR("waitpid(%lu) returned %d",
@@ -356,4 +348,17 @@ tsd_task_poll(struct tsd_task *t)
 		errno = EAGAIN;
 		return (-1);
 	}
+	/* fell through from above: task has stopped */
+	serrno = errno;
+	t->pid = -1;
+	close(t->pin);
+	close(t->pout);
+	close(t->perr);
+	t->pin = t->pout = t->perr = -1;
+	if (t->set != NULL)
+		t->set->nrunning--;
+	errno = serrno;
+	if (t->state != TASK_STOPPED)
+		return (-1);
+	return (0);
 }

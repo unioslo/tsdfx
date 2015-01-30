@@ -79,8 +79,6 @@ struct tsdfx_copy_task_data {
  */
 static struct tsd_tset *tsdfx_copy_tasks;
 // static struct tsd_tqueue *tsdfx_copy_queue[6];
-static unsigned int tsdfx_copy_ntasks;
-static unsigned int tsdfx_copy_nrunning;
 
 /* max concurrent tasks per queue */
 unsigned int tsdfx_copy_max_tasks = 4;
@@ -145,8 +143,8 @@ tsdfx_copy_add(struct tsd_task *t)
 	VERBOSE("%s -> %s", ctd->src, ctd->dst);
 	if (tsd_tset_insert(tsdfx_copy_tasks, t) != 0)
 		return (-1);
-	tsdfx_copy_ntasks++;
-	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
+	    tsdfx_copy_tasks->nrunning);
 	return (0);
 }
 
@@ -161,8 +159,8 @@ tsdfx_copy_remove(struct tsd_task *t)
 	VERBOSE("%s -> %s", ctd->src, ctd->dst);
 	if (tsd_tset_remove(tsdfx_copy_tasks, t) != 0)
 		return (-1);
-	tsdfx_copy_ntasks--;
-	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
+	    tsdfx_copy_tasks->nrunning);
 	return (0);
 }
 
@@ -286,8 +284,8 @@ tsdfx_copy_start(struct tsd_task *t)
 		return (0);
 	if (tsd_task_start(t) != 0)
 		return (-1);
-	tsdfx_copy_nrunning++;
-	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
+	    tsdfx_copy_tasks->nrunning);
 	return (0);
 }
 
@@ -300,9 +298,8 @@ tsdfx_copy_poll(struct tsd_task *t)
 
 	if (tsd_task_poll(t) != 0)
 		return (-1);
-	if (t->state != TASK_RUNNING)
-		tsdfx_copy_nrunning--;
-	VERBOSE("%d jobs, %d running", tsdfx_copy_ntasks, tsdfx_copy_nrunning);
+	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
+	    tsdfx_copy_tasks->nrunning);
 	return (0);
 }
 
@@ -317,7 +314,6 @@ tsdfx_copy_stop(struct tsd_task *t)
 	VERBOSE("%s -> %s", ctd->src, ctd->dst);
 	if (tsd_task_stop(t) != 0)
 		return (-1);
-	tsdfx_copy_nrunning--;
 	return (0);
 }
 
@@ -432,7 +428,7 @@ tsdfx_copy_sched(void)
 		tn = tsd_tset_next(tsdfx_copy_tasks, t);
 		switch (t->state) {
 		case TASK_IDLE:
-			if (tsdfx_copy_nrunning < tsdfx_copy_max_tasks &&
+			if (tsdfx_copy_tasks->nrunning < tsdfx_copy_max_tasks &&
 			    tsdfx_copy_start(t) != 0)
 				WARNING("failed to start task: %s",
 				    strerror(errno));
@@ -452,7 +448,7 @@ tsdfx_copy_sched(void)
 		}
 		t = tn;
 	}
-	return (tsdfx_copy_nrunning);
+	return (tsdfx_copy_tasks->nrunning);
 }
 
 /*
