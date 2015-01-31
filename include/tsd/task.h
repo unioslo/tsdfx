@@ -43,6 +43,18 @@ enum tsd_task_state {
 	TASK_FAILED,		/* stopped and something went wrong */
 };
 
+#define TASK_STDIN_NULL		0x0001
+#define TASK_STDOUT_NULL	0x0002
+#define TASK_STDERR_NULL	0x0004
+#define TASK_STDIN_PIPE		0x0010
+#define TASK_STDOUT_PIPE	0x0020
+#define TASK_STDERR_PIPE	0x0040
+
+/* used internally */
+#define TASK_STDIN		(TASK_STDIN_NULL|TASK_STDIN_PIPE)
+#define TASK_STDOUT		(TASK_STDOUT_NULL|TASK_STDOUT_PIPE)
+#define TASK_STDERR		(TASK_STDERR_NULL|TASK_STDERR_PIPE)
+
 typedef void (tsd_task_func)(void *);
 
 struct tsd_task {
@@ -52,6 +64,7 @@ struct tsd_task {
 
 	/* state */
 	enum tsd_task_state	 state;
+	int			 flags;
 
 	/* credentials */
 	char			 user[32];

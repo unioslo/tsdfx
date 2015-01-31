@@ -235,6 +235,7 @@ tsdfx_scan_new(const char *path)
 	/* create task and set credentials */
 	if ((t = tsd_task_create(name, tsdfx_scan_child, std)) == NULL)
 		goto fail;
+	t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE;
 	if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
 		goto fail;
 	if (tsdfx_scan_add(t) != 0)
@@ -479,10 +480,15 @@ tsdfx_scan_poll(struct tsd_task *t)
 	switch (poll(&pfd, 1, 0)) {
 	case 1:
 		/* yes, let's get it */
-		if (tsdfx_scan_slurp(t) < 0)
+		if (pfd.revents & POLLIN) {
+			if (tsdfx_scan_slurp(t) < 0)
+				if (tsdfx_scan_stop(t) == 0)
+					t->state = TASK_FAILED;
+		}
+		if (pfd.revents & POLLHUP) {
 			if (tsdfx_scan_stop(t) == 0)
-				t->state = TASK_FAILED;
-		VERBOSE("%s state %d", std->path, t->state);
+				t->state = TASK_FINISHED;
+		}
 		break;
 	case 0:
 		/* no, process has terminated */

@@ -117,6 +117,10 @@ tsd_task_destroy(struct tsd_task *t)
 
 /*
  * Set the task credentials to those of the given user.
+ *
+ * Slight hack: we prepend the user's primary group ID to the list of
+ * groups, as it is not guaranteed to be included in the list returned by
+ * getgroups().  We make no attempt to sort or deduplicate the list.
  */
 int
 tsd_task_setuser(struct tsd_task *t, const char *user)
@@ -131,11 +135,13 @@ tsd_task_setuser(struct tsd_task *t, const char *user)
 	t->ngids = sizeof t->gids / sizeof t->gids[0];
 	if ((pwd = getpwnam(user)) == NULL ||
 	    strlcpy(t->user, pwd->pw_name, sizeof t->user) >= sizeof t->user ||
-	    (t->ngids = getgroups(t->ngids, t->gids)) < 1) {
+	    (t->ngids = getgroups(t->ngids - 1, t->gids + 1)) < 0) {
 		tsd_task_clearcred(t);
 		return (-1);
 	}
 	t->uid = pwd->pw_uid;
+	t->gids[0] = pwd->pw_gid;
+	t->ngids++;
 	return (0);
 }
 
@@ -186,15 +192,30 @@ tsd_task_start(struct tsd_task *t)
 	t->state = TASK_STARTING;
 
 	/* prepare file descriptors */
-	if (pipe(pin) != 0 || pipe(pout) != 0 || pipe(perr) != 0)
-		goto fail;
-	t->pin = pin[1];
-	t->pout = pout[0];
-	t->perr = perr[0];
-	if (fcntl(t->pin, F_SETFL, (long)O_NONBLOCK) != 0 ||
-	    fcntl(t->pout, F_SETFL, (long)O_NONBLOCK) != 0 ||
-	    fcntl(t->perr, F_SETFL, (long)O_NONBLOCK) != 0)
-		goto fail;
+	if (t->flags & TASK_STDIN_NULL) {
+		if ((pin[0] = open("/dev/null", O_RDONLY)) < 0)
+			goto fail;
+	} else if (t->flags & TASK_STDIN_PIPE) {
+		if (pipe(pin) != 0 || fcntl(pin[1], F_SETFL, O_NONBLOCK) != 0)
+			goto fail;
+		t->pin = pin[1];
+	}
+	if (t->flags & TASK_STDOUT_NULL) {
+		if ((pout[1] = open("/dev/null", O_WRONLY)) < 0)
+			goto fail;
+	} else if (t->flags & TASK_STDOUT_PIPE) {
+		if (pipe(pout) != 0 || fcntl(pout[0], F_SETFL, O_NONBLOCK) != 0)
+			goto fail;
+		t->pout = pout[0];
+	}
+	if (t->flags & TASK_STDERR_NULL) {
+		if ((perr[1] = open("/dev/null", O_WRONLY)) < 0)
+			goto fail;
+	} else if (t->flags & TASK_STDERR_PIPE) {
+		if (pipe(perr) != 0 || fcntl(perr[0], F_SETFL, O_NONBLOCK) != 0)
+			goto fail;
+		t->perr = perr[0];
+	}
 
 	/* fork the child */
 	fflush(NULL);
@@ -207,9 +228,9 @@ tsd_task_start(struct tsd_task *t)
 #if HAVE_FPURGE
 		fpurge(stdin);
 #endif
-		if (dup2(pin[0], STDIN_FILENO) != STDIN_FILENO ||
-		    dup2(pout[1], STDOUT_FILENO) != STDOUT_FILENO ||
-		    dup2(perr[1], STDERR_FILENO) != STDERR_FILENO) {
+		if ((t->flags & TASK_STDIN && dup2(pin[0], 0) != 0) ||
+		    (t->flags & TASK_STDOUT && dup2(pout[1], 1) != 1) ||
+		    (t->flags & TASK_STDERR && dup2(perr[1], 2) != 2)) {
 			ERROR("failed to set up standard file descriptors");
 			_exit(1);
 		}
@@ -251,6 +272,12 @@ tsd_task_start(struct tsd_task *t)
 	}
 
 	/* parent */
+	if (t->flags & TASK_STDIN)
+		close(pin[0]);
+	if (t->flags & TASK_STDOUT)
+		close(pout[1]);
+	if (t->flags & TASK_STDERR)
+		close(perr[1]);
 	t->state = TASK_RUNNING;
 	if (t->set != NULL)
 		t->set->nrunning++;
@@ -259,12 +286,18 @@ fail:
 	serrno = errno;
 	t->state = TASK_DEAD;
 	t->pid = -1;
-	close(pin[0]);
-	close(pin[1]);
-	close(pout[0]);
-	close(pout[1]);
-	close(perr[0]);
-	close(perr[1]);
+	if (t->flags & TASK_STDIN) {
+		close(pin[0]);
+		close(pin[1]);
+	}
+	if (t->flags & TASK_STDOUT) {
+		close(pout[0]);
+		close(pout[1]);
+	}
+	if (t->flags & TASK_STDERR) {
+		close(perr[0]);
+		close(perr[1]);
+	}
 	t->pin = t->pout = t->perr = -1;
 	errno = serrno;
 	return (-1);
@@ -373,9 +406,12 @@ tsd_task_poll(struct tsd_task *t)
 	/* fell through from above: task has stopped */
 	serrno = errno;
 	t->pid = -1;
-	close(t->pin);
-	close(t->pout);
-	close(t->perr);
+	if (t->flags & TASK_STDIN)
+		close(t->pin);
+	if (t->flags & TASK_STDOUT)
+		close(t->pout);
+	if (t->flags & TASK_STDERR)
+		close(t->perr);
 	t->pin = t->pout = t->perr = -1;
 	if (t->set != NULL)
 		t->set->nrunning--;
