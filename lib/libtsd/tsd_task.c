@@ -92,7 +92,7 @@ tsd_task_create(const char *name, tsd_task_func *func, void *ud)
 	t->pid = -1;
 	t->pin = t->pout = t->perr = -1;
 	t->ud = ud;
-	VERBOSE("%s(\"%s\") = %p", __func__, name, t);
+	VERBOSE("%s", name);
 	return (t);
 }
 
@@ -103,7 +103,7 @@ void
 tsd_task_destroy(struct tsd_task *t)
 {
 
-	VERBOSE("%s(%p)", __func__, t);
+	VERBOSE("%s", t->name);
 	if (t == NULL)
 		return;
 	if (t->state == TASK_RUNNING)
@@ -177,7 +177,7 @@ tsd_task_start(struct tsd_task *t)
 	int fd, maxfd;
 #endif
 
-	VERBOSE("%s(%p)", __func__, t);
+	VERBOSE("%s", t->name);
 
 	if (t->state == TASK_RUNNING)
 		return (0);
@@ -283,7 +283,7 @@ tsd_task_stop(struct tsd_task *t)
 	static const int sig[] = { SIGCONT, SIGTERM, SIGKILL, -1 };
 	int i;
 
-	VERBOSE("%s(%p)", __func__, t);
+	VERBOSE("%s", t->name);
 
 	/* check current state */
 	if (t->state != TASK_RUNNING)
@@ -321,7 +321,7 @@ int
 tsd_task_reset(struct tsd_task *t)
 {
 
-	VERBOSE("%s(%p)", __func__, t);
+	VERBOSE("%s", t->name);
 
 	if (t->state == TASK_IDLE)
 		return (0);
@@ -339,7 +339,7 @@ tsd_task_poll(struct tsd_task *t)
 {
 	int ret, serrno;
 
-	VERBOSE("%s(%p)", __func__, t);
+	VERBOSE("%s", t->name);
 
 	if (t->state != TASK_RUNNING && t->state != TASK_STOPPING)
 		return (-1);
