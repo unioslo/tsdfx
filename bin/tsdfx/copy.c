@@ -88,13 +88,13 @@ const char *tsdfx_copier;
 
 static void tsdfx_copy_name(char *, const char *, const char *);
 static struct tsd_task *tsdfx_copy_find(const char *, const char *);
+static int tsdfx_copy_poll(struct tsd_task *);
+static void tsdfx_copy_child(void *);
+
 static int tsdfx_copy_add(struct tsd_task *);
 static int tsdfx_copy_remove(struct tsd_task *);
-static struct tsd_task *tsdfx_copy_new(const char *, const char *);
 static void tsdfx_copy_delete(struct tsd_task *);
-static void tsdfx_copy_child(void *);
 static int tsdfx_copy_start(struct tsd_task *);
-static int tsdfx_copy_poll(struct tsd_task *);
 static int tsdfx_copy_stop(struct tsd_task *);
 
 /*
@@ -167,7 +167,7 @@ tsdfx_copy_remove(struct tsd_task *t)
 /*
  * Prepare a copy task.
  */
-static struct tsd_task *
+struct tsd_task *
 tsdfx_copy_new(const char *src, const char *dst)
 {
 	char name[NAME_MAX];
@@ -177,16 +177,16 @@ tsdfx_copy_new(const char *src, const char *dst)
 	struct passwd *pw;
 	int serrno;
 
+	/* check that the source exists */
+	if (lstat(src, &st) != 0)
+		return (NULL);
+
 	/* check for existing task */
 	tsdfx_copy_name(name, src, dst);
 	if (tsd_tset_find(tsdfx_copy_tasks, name) != NULL) {
 		errno = EEXIST;
-		goto fail;
+		return (NULL);
 	}
-
-	/* check that the source exists */
-	if (lstat(src, &st) == -1)
-		goto fail;
 
 	/* create task data */
 	if ((ctd = calloc(1, sizeof *ctd)) == NULL)
