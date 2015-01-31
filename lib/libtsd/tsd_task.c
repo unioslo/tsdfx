@@ -35,6 +35,7 @@
 #include <sys/wait.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <grp.h>
 #include <limits.h>
 #include <pwd.h>
@@ -190,6 +191,10 @@ tsd_task_start(struct tsd_task *t)
 	t->pin = pin[1];
 	t->pout = pout[0];
 	t->perr = perr[0];
+	if (fcntl(t->pin, F_SETFL, (long)O_NONBLOCK) != 0 ||
+	    fcntl(t->pout, F_SETFL, (long)O_NONBLOCK) != 0 ||
+	    fcntl(t->perr, F_SETFL, (long)O_NONBLOCK) != 0)
+		goto fail;
 
 	/* fork the child */
 	fflush(NULL);
@@ -202,9 +207,9 @@ tsd_task_start(struct tsd_task *t)
 #if HAVE_FPURGE
 		fpurge(stdin);
 #endif
-		if (dup2(pin[0], STDIN_FILENO) != 0 ||
-		    dup2(pout[1], STDOUT_FILENO) != 0 ||
-		    dup2(perr[1], STDERR_FILENO) != 0) {
+		if (dup2(pin[0], STDIN_FILENO) != STDIN_FILENO ||
+		    dup2(pout[1], STDOUT_FILENO) != STDOUT_FILENO ||
+		    dup2(perr[1], STDERR_FILENO) != STDERR_FILENO) {
 			ERROR("failed to set up standard file descriptors");
 			_exit(1);
 		}
@@ -309,6 +314,22 @@ tsd_task_stop(struct tsd_task *t)
 	return (0);
 }
 
+/*
+ * Reset a task so it can be started again.
+ */
+int
+tsd_task_reset(struct tsd_task *t)
+{
+
+	VERBOSE("%s(%p)", __func__, t);
+
+	if (t->state == TASK_IDLE)
+		return (0);
+	if (t->state == TASK_RUNNING)
+		tsd_task_stop(t);
+	t->state = TASK_IDLE;
+	return (0);
+}
 
 /*
  * Poll a task to see if it's still running.

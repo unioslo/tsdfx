@@ -93,6 +93,7 @@ int tsd_task_setcred(struct tsd_task *, uid_t, gid_t *, int);
 void tsd_task_destroy(struct tsd_task *);
 int tsd_task_start(struct tsd_task *);
 int tsd_task_stop(struct tsd_task *);
+int tsd_task_reset(struct tsd_task *);
 int tsd_task_poll(struct tsd_task *);
 
 struct tsd_tset *tsd_tset_create(const char *);
