@@ -93,10 +93,9 @@ tsdfx_run(const char *mapfile)
 
 		/* start and run scan tasks */
 		scan_running = tsdfx_scan_sched();
-		tsdfx_scan_iter();
 
 		/* check scan tasks and create copy tasks as needed */
-		tsdfx_map_iter();
+		tsdfx_map_sched();
 
 		/* start and run copy tasks */
 		copy_running = tsdfx_copy_sched();
