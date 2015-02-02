@@ -81,7 +81,7 @@ static struct tsd_tset *tsdfx_copy_tasks;
 // static struct tsd_tqueue *tsdfx_copy_queue[6];
 
 /* max concurrent tasks per queue */
-unsigned int tsdfx_copy_max_tasks = 4;
+unsigned int tsdfx_copy_max_tasks = 8;
 
 /* full path to copier binary */
 const char *tsdfx_copier;
@@ -201,9 +201,13 @@ tsdfx_copy_new(const char *src, const char *dst)
 	if ((t = tsd_task_create(name, tsdfx_copy_child, ctd)) == NULL)
 		goto fail;
 	if ((pw = getpwuid(st.st_uid)) != NULL) {
+		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, dst);
 		if (tsd_task_setuser(t, pw->pw_name) != 0)
 			goto fail;
 	} else {
+		VERBOSE("getpwuid(%lu) failed; setcred(%lu, %lu) for %s",
+		    (unsigned long)st.st_uid, (unsigned long)st.st_uid,
+		    (unsigned long)st.st_gid, dst);
 		if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
 			goto fail;
 	}
