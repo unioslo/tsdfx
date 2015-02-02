@@ -12,3 +12,6 @@ libtsd_la_SOURCES += tsd_sha1.c
 libtsd_la_SOURCES += tsd_straddch.c
 libtsd_la_SOURCES += tsd_strlcat.c
 libtsd_la_SOURCES += tsd_strlcpy.c
+libtsd_la_SOURCES += tsd_task.c
+libtsd_la_SOURCES += tsd_task_queue.c
+libtsd_la_SOURCES += tsd_task_set.c

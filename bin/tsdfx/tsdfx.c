@@ -68,6 +68,8 @@ int
 tsdfx_init(const char *mapfile)
 {
 
+	if (tsdfx_copy_init() != 0)
+		return (-1);
 	if (tsdfx_scan_init() != 0)
 		return (-1);
 	if (tsdfx_map_reload(mapfile) != 0)
@@ -78,6 +80,7 @@ tsdfx_init(const char *mapfile)
 void
 tsdfx_run(const char *mapfile)
 {
+	int scan_running, copy_running;
 
 	signal(SIGHUP, signal_handler);
 	for (;;) {
@@ -89,15 +92,13 @@ tsdfx_run(const char *mapfile)
 		}
 
 		/* start and run scan tasks */
-		tsdfx_scan_sched();
-		tsdfx_scan_iter();
+		scan_running = tsdfx_scan_sched();
 
 		/* check scan tasks and create copy tasks as needed */
-		tsdfx_map_iter();
+		tsdfx_map_sched();
 
 		/* start and run copy tasks */
-		tsdfx_copy_sched();
-		tsdfx_copy_iter();
+		copy_running = tsdfx_copy_sched();
 
 		/* in oneshot mode, are we done? */
 		if (tsdfx_oneshot && scan_running == 0 && copy_running == 0)

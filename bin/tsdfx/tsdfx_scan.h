@@ -30,23 +30,16 @@
 #ifndef TSDFX_SCAN_H_INCLUDED
 #define TSDFX_SCAN_H_INCLUDED
 
-struct scan_task;
+struct tsd_task;
 
-enum task_state tsdfx_scan_state(const struct scan_task *);
-const char *tsdfx_scan_result(const struct scan_task *);
+struct tsd_task *tsdfx_scan_new(const char *);
+void tsdfx_scan_delete(struct tsd_task *);
+int tsdfx_scan_reset(struct tsd_task *);
 
-int tsdfx_scan_add(struct scan_task *);
-int tsdfx_scan_mute(const struct scan_task *);
-int tsdfx_scan_unmute(const struct scan_task *);
-int tsdfx_scan_remove(struct scan_task *);
-struct scan_task *tsdfx_scan_new(const char *, const char *);
-int tsdfx_scan_start(struct scan_task *);
-int tsdfx_scan_stop(struct scan_task *);
-int tsdfx_scan_reset(struct scan_task *);
-void tsdfx_scan_delete(struct scan_task *);
-int tsdfx_scan_slurp(struct scan_task *);
 int tsdfx_scan_sched(void);
-int tsdfx_scan_iter(void);
 int tsdfx_scan_init(void);
+
+enum tsd_task_state tsdfx_scan_state(const struct tsd_task *);
+const char *tsdfx_scan_result(const struct tsd_task *);
 
 #endif

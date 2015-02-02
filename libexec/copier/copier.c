@@ -59,8 +59,11 @@ static int tsdfx_dryrun;
 
 static mode_t mumask;
 
-/* XXX make this a configuration parameter */
+/* XXX make these configurable */
+/* how much to attempt to copy at a time */
 #define BLOCKSIZE	1024576
+/* how many tenths of a second to wait for more data after EOF */
+#define MAX_RETRIES	100
 
 struct copyfile {
 	char		 name[PATH_MAX];
@@ -76,6 +79,7 @@ struct copyfile {
 };
 
 static struct copyfile *copyfile_open(const char *, int, int);
+static int copyfile_refresh(struct copyfile *);
 static int copyfile_read(struct copyfile *);
 static int copyfile_compare(struct copyfile *, struct copyfile *);
 static int copyfile_comparestat(struct copyfile *, struct copyfile *);
@@ -174,6 +178,37 @@ fail:
 	if (cf != NULL)
 		copyfile_close(cf);
 	return (NULL);
+}
+
+/* re-stat the file, see if someone's pulled the rug under our feet */
+static int
+copyfile_refresh(struct copyfile *cf)
+{
+	struct stat st;
+
+	if (stat(cf->name, &st) != 0) {
+		ERROR("%s: %s", cf->name, strerror(errno));
+		return (-1);
+	}
+	if (st.st_dev != cf->st.st_dev ||
+	    st.st_ino != cf->st.st_ino) {
+		ERROR("%s has moved", cf->name);
+		errno = ESTALE;
+		return (-1);
+	}
+	if (st.st_uid != cf->st.st_uid || st.st_gid != cf->st.st_gid)
+		WARNING("%s: owner changed from %lu:%lu to %lu:%lu", cf->name,
+		    (unsigned long)cf->st.st_uid, (unsigned long)cf->st.st_gid,
+		    (unsigned long)st.st_uid, (unsigned long)st.st_gid);
+	if (st.st_mode != cf->st.st_mode)
+		WARNING("%s: mode has changed from %04o to %04o", cf->name,
+		    (int)cf->st.st_mode, (int)st.st_mode);
+	if (st.st_mtime < cf->st.st_mtime)
+		WARNING("%s: mtime went backwards", cf->name);
+	if (st.st_size < cf->st.st_size)
+		WARNING("%s: truncated", cf->name);
+	cf->st = st;
+	return (0);
 }
 
 /* return 1 if file a directory, 0 otherwise; also sets errno */
@@ -367,7 +402,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	off_t needbytes;
 #endif
 	struct copyfile *src, *dst;
-	int serrno;
+	int retries, serrno;
 
 	/* check file names */
 	/* XXX should also compare type (trailing /) */
@@ -447,13 +482,18 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		    (size_t)dst->st.st_size);
 
 	/* loop over the input and compare with the destination */
+	retries = 0;
 	for (;;) {
-		if (copyfile_read(src) != 0 ||
-		    copyfile_read(dst) != 0)
+		if (copyfile_refresh(src) != 0 || copyfile_read(src) != 0 ||
+		    copyfile_refresh(dst) != 0 || copyfile_read(dst) != 0)
 			goto fail;
 		if (src->buflen == 0) {
+			/* wait a bit to see if it keeps growing */
+			if (retries++ < MAX_RETRIES) {
+				usleep(100 * 1000);
+				continue;
+			}
 			/* end of source file */
-			/* XXX add code to wait for additional data */
 			copyfile_copystat(src, dst);
 			if (copyfile_finish(src) != 0 ||
 			    copyfile_finish(dst) != 0)
@@ -467,6 +507,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 			copyfile_close(dst);
 			return (0);
 		}
+		retries = 0;
 		if (copyfile_compare(src, dst) != 0) {
 			/* input and output differ */
 			copyfile_copy(src, dst);
@@ -481,6 +522,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 fail:
 	serrno = errno;
 	ERROR("failed to copy %s to %s", srcfn, dstfn);
+	/* if we copied anything at all, we should log it here */
 	if (src != NULL)
 		copyfile_close(src);
 	if (dst != NULL)

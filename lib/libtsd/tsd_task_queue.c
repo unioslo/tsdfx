@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014 Universitetet i Oslo
+ * Copyright (c) 2015 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,50 +31,67 @@
 # include "config.h"
 #endif
 
+#include <sys/types.h>
 #include <sys/wait.h>
 
 #include <errno.h>
 #include <string.h>
 
 #include <tsd/log.h>
-
-#include "tsdfx.h"
-#include "tsdfx_task.h"
+#include <tsd/task.h>
 
 /*
- * Poll a task to see if it's still running.
+ * Create a new task queue
+ */
+struct tsd_taskq *
+tsd_taskq_create(void)
+{
+
+	return (NULL);
+}
+
+/*
+ * Destroy a task queue
  */
 int
-tsdfx_task_poll(pid_t pid, enum task_state *state)
+tsd_taskq_destroy(struct tsd_taskq *tq)
 {
-	int ret, status;
 
-#if 0
-	VERBOSE("pid %d", (int)pid);
-#endif
+	(void)tq;
+	return (-1);
+}
 
-	if (*state != TASK_RUNNING && *state != TASK_STOPPING)
-		return (-1);
-	ret = waitpid(pid, &status, WNOHANG);
-	if (ret < 0) {
-		/* already reaped, or something is wrong */
-		WARNING("waitpid(%d): %s", (int)pid, strerror(errno));
-		*state = TASK_DEAD;
-		return (-1);
-	} else if (ret == 0) {
-		/* still running */
-		return (0);
-	} else if (ret == pid) {
-		if (!WIFEXITED(status))
-			*state = TASK_DEAD;
-		else if (WEXITSTATUS(status) != 0)
-			*state = TASK_FAILED;
-		else
-			*state = TASK_STOPPED;
-		return (0);
-	} else {
-		/* wtf? */
-		ERROR("waitpid(%d) returned %d", (int)pid, ret);
-		return (-1);
-	}
+/*
+ * Add a task to a queue
+ */
+int
+tsd_taskq_insert(struct tsd_taskq *tq, struct tsd_task *t)
+{
+
+	(void)tq;
+	(void)t;
+	return (-1);
+}
+
+/*
+ * Remove a task from its queue
+ */
+int
+tsd_taskq_remove(struct tsd_taskq *tq, struct tsd_task *t)
+{
+
+	(void)tq;
+	(void)t;
+	return (-1);
+}
+
+/*
+ * Get the next runnable task from a queue
+ */
+struct tsd_task *
+tsd_taskq_next(struct tsd_taskq *tq)
+{
+
+	(void)tq;
+	return (NULL);
 }

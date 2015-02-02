@@ -45,10 +45,10 @@
 
 #include <tsd/log.h>
 #include <tsd/strutil.h>
+#include <tsd/task.h>
 
 #include "tsdfx.h"
 #include "tsdfx_map.h"
-#include "tsdfx_task.h"
 #include "tsdfx_scan.h"
 #include "tsdfx_copy.h"
 
@@ -56,7 +56,7 @@ struct map {
 	char name[NAME_MAX];
 	char srcpath[PATH_MAX];
 	char dstpath[PATH_MAX];
-	struct scan_task *task;
+	struct tsd_task *task;
 };
 
 static struct map **map;
@@ -264,8 +264,7 @@ tsdfx_map_reload(const char *fn)
 		} else if (res > 0) {
 			/* new task */
 			VERBOSE("adding %s", newmap[j]->name);
-			newmap[j]->task =
-			    tsdfx_scan_new(newmap[j]->name, newmap[j]->srcpath);
+			newmap[j]->task = tsdfx_scan_new(newmap[j]->srcpath);
 			if (newmap[j]->task == NULL)
 				goto fail;
 			++j;
@@ -317,15 +316,14 @@ fail:
  * scan tasks.
  */
 int
-tsdfx_map_iter(void)
+tsdfx_map_sched(void)
 {
 	int i;
 
 	for (i = 0; i < map_len; ++i) {
 		switch (tsdfx_scan_state(map[i]->task)) {
 		case TASK_FINISHED:
-			tsdfx_copy_wrap(map[i]->name,
-			    map[i]->srcpath, map[i]->dstpath,
+			tsdfx_copy_wrap(map[i]->srcpath, map[i]->dstpath,
 			    tsdfx_scan_result(map[i]->task));
 			tsdfx_scan_reset(map[i]->task);
 			break;
@@ -341,5 +339,5 @@ tsdfx_map_iter(void)
 			break;
 		}
 	}
-	return (0);
+	return (map_len);
 }

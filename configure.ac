@@ -27,7 +27,7 @@ AC_CHECK_HEADERS([endian.h sys/endian.h sys/statvfs.h])
 
 # functions
 AC_CHECK_FUNCS([strlcat strlcpy])
-AC_CHECK_FUNCS([closefrom])
+AC_CHECK_FUNCS([closefrom fpurge])
 AC_CHECK_FUNCS([statvfs])
 AC_CHECK_FUNCS([getgroups setgroups initgroups])
 
