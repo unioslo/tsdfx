@@ -66,7 +66,7 @@ tsd_task_clearcred(struct tsd_task *t)
 	t->uid = (uid_t)-1;
 	memset(t->gids, 0, sizeof t->gids);
 	t->gids[0] = (gid_t)-1;
-	t->ngids = 1;
+	t->ngids = 0;
 }
 
 /*
@@ -117,10 +117,6 @@ tsd_task_destroy(struct tsd_task *t)
 
 /*
  * Set the task credentials to those of the given user.
- *
- * Slight hack: we prepend the user's primary group ID to the list of
- * groups, as it is not guaranteed to be included in the list returned by
- * getgroups().  We make no attempt to sort or deduplicate the list.
  */
 int
 tsd_task_setuser(struct tsd_task *t, const char *user)
@@ -131,18 +127,26 @@ tsd_task_setuser(struct tsd_task *t, const char *user)
 		errno = EBUSY;
 		return (-1);
 	}
-	tsd_task_clearcred(t);
-	t->ngids = sizeof t->gids / sizeof t->gids[0];
-	if ((pwd = getpwnam(user)) == NULL ||
-	    strlcpy(t->user, pwd->pw_name, sizeof t->user) >= sizeof t->user ||
-	    (t->ngids = getgroups(t->ngids - 1, t->gids + 1)) < 0) {
-		tsd_task_clearcred(t);
-		return (-1);
+	errno = 0;
+	if ((pwd = getpwnam(user)) == NULL) {
+		if (errno == 0)
+			errno = ENOENT;
+		goto fail;
+	}
+	if (strlcpy(t->user, pwd->pw_name, sizeof t->user) >= sizeof t->user) {
+		errno = ENAMETOOLONG;
+		goto fail;
 	}
 	t->uid = pwd->pw_uid;
-	t->gids[0] = pwd->pw_gid;
-	t->ngids++;
+	t->ngids = sizeof t->gids / sizeof t->gids[0];
+	if (getgrouplist(pwd->pw_name, pwd->pw_gid, t->gids, &t->ngids) < 0) {
+		/* XXX does getgrouplist() set errno? */
+		goto fail;
+	}
 	return (0);
+fail:
+	tsd_task_clearcred(t);
+	return (-1);
 }
 
 /*
@@ -248,25 +252,23 @@ tsd_task_start(struct tsd_task *t)
 #endif
 
 		/* drop privileges */
-		if (geteuid() != t->uid || getuid() != t->uid ||
-		    getegid() != t->gids[0] || getgid() != t->gids[0]) {
+		if (geteuid() == 0 && t->gids[0] > 0 && t->uid != (uid_t)-1) {
 #if HAVE_SETGROUPS
 			ret = setgroups(t->ngids, t->gids);
 #else
 			ret = setgid(t->gids[0]);
 #endif
 			if (ret != 0)
-				WARNING("failed to set process group");
-#if HAVE_INITGROUPS
-//			if (*t->user && ret == 0)
-//				if ((ret = initgroups(t->user, t->gid)) != 0)
-//					WARNING("failed to set additional groups");
-#endif
-			if (ret == 0 && (ret = setuid(t->uid)) != 0)
-				WARNING("failed to set process user");
+				ERROR("failed to set process group");
+			else if ((ret = setuid(t->uid)) != 0)
+				ERROR("failed to set process user");
 			if (ret != 0)
 				_exit(1);
 		}
+		if (getgid() != getegid())
+			(void)setgid(getgid());
+		if (getuid() != geteuid())
+			(void)setuid(getuid());
 		(*t->func)(t->ud);
 		_exit(1);
 	}
