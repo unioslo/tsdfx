@@ -114,7 +114,7 @@ static int tsdfx_scan_stop(struct tsd_task *);
  * XXX allow spaces as well for now
  */
 #define SCAN_REGEX \
-	"^((/[0-9A-Za-z_-][ 0-9A-Za-z._-]*[0-9A-Za-z._-]*)+/?\n)*$"
+	"^((/[0-9A-Za-z_-]([ 0-9A-Za-z._-]*[0-9A-Za-z._-])?)+/?\n)*$"
 static regex_t scan_regex;
 
 /*
@@ -433,34 +433,7 @@ tsdfx_scan_slurp(struct tsd_task *t)
 		std->buf[std->buflen] = '\0';
 		len += rlen;
 	} while (rlen > 0);
-
-	/* validate */
-	/*
-	 * XXX two problems here:
-	 *
-	 *  - We revalidate the entire buffer every time, which is
-         *    inefficient - n * (n - 1) / 2, or O(n²).
-	 *
-	 *  - We assume that we read one or more complete lines.  This
-         *    happens to be the case because a) the child's stdout is
-         *    line-buffered and b) a combination of implementation details
-         *    in stdio and the kernel which result in each line being
-         *    written (and read) atomically, but this assumption may not
-         *    hold on other platforms, and it may break if the child
-         *    writes a very long line.
-	 *
-	 * A simple (table-driven?) state machine would solve both issues.
-	 */
-	if (regexec(&scan_regex, std->buf, 0, NULL, 0) != 0) {
-		WARNING("invalid output from child %ld for %s",
-		    (long)t->pid, std->path);
-		goto einval;
-	}
-
 	return (len);
-einval:
-	errno = EINVAL;
-	return (-1);
 }
 
 /*
@@ -492,8 +465,16 @@ tsdfx_scan_poll(struct tsd_task *t)
 		break;
 	case 0:
 		/* no, process has terminated */
-		if (tsdfx_scan_stop(t) == 0)
-			t->state = TASK_FINISHED;
+		if (tsdfx_scan_stop(t) == 0) {
+			/* validate */
+			if (regexec(&scan_regex, std->buf, 0, NULL, 0) != 0) {
+				WARNING("invalid output from child %ld for %s",
+				    (long)t->pid, std->path);
+				t->state = TASK_FAILED;
+			} else {
+				t->state = TASK_FINISHED;
+			}
+		}
 		break;
 	default:
 		/* oops */

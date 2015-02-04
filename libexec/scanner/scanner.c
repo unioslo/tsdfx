@@ -171,6 +171,10 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 			return (0);
 		}
 	}
+	/*
+	 * XXX insufficient, the master process will reject names that
+	 * start or end with a space
+	 */
 
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
