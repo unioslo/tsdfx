@@ -34,7 +34,6 @@
 #define SHA1_BLOCK_LEN			64
 #define SHA1_DIGEST_LEN			20
 
-#define sha1_digest			tsd_sha1_digest
 #define sha1_ctx			tsd_sha1_ctx
 #define sha1_init			tsd_sha1_init
 #define sha1_update			tsd_sha1_update
