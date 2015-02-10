@@ -15,3 +15,15 @@ libtsd_la_SOURCES += tsd_strlcpy.c
 libtsd_la_SOURCES += tsd_task.c
 libtsd_la_SOURCES += tsd_task_queue.c
 libtsd_la_SOURCES += tsd_task_set.c
+
+dist_man3_MANS =
+dist_man3_MANS += tsd_hash.3
+dist_man3_MANS += tsd_readlinev.3
+dist_man3_MANS += tsd_readword.3
+dist_man3_MANS += tsd_sha1.3
+dist_man3_MANS += tsd_straddch.3
+dist_man3_MANS += tsd_strlcat.3
+dist_man3_MANS += tsd_strlcpy.3
+dist_man3_MANS += tsd_task.3
+dist_man3_MANS += tsd_task_queue.3
+dist_man3_MANS += tsd_task_set.3

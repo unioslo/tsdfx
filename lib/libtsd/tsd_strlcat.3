@@ -1,0 +1,82 @@
+.\"-
+.\" Copyright (c) 2015 Universitetet i Oslo
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\" 3. The name of the author may not be used to endorse or promote
+.\"    products derived from this software without specific prior written
+.\"    permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd February 5, 2015
+.Dt tsd_strlcat 3
+.Os
+.Sh NAME
+.Nm tsd_strlcat
+.Nd safely append a string to a buffer
+.Sh LIBRARY
+.Lb libtsd
+.Sh SYNOPSIS
+.In stdint.h
+.In tsd/strutil.h
+.Ft size_t
+.Fn tsd_strlcat "char *dst" "const char *src" "size_t size"
+.Sh DESCRIPTION
+The
+.Nm tsd_strlcat
+function appends the NUL-terminated string pointed to by
+.Va src
+to the NUL-terminated string stored in the buffer pointed to by
+.Va dst .
+The
+.Va size
+argument specifies the total size of the buffer including the space
+occupied by the existing string and space for the terminating NUL
+character.
+If the sum of the lengths of both strings exceeds the available space,
+the result is truncated.
+In all cases, the destination buffer is properly NUL-terminated.
+.Sh RETURN VALUES
+The
+.Fn tsd_strlcat
+function returns the sum of the lengths of the original strings.
+If this number is equal to or greater than the value of the
+.Va size
+argument, the string was too long to fit in the buffer.
+.Sh IMPLEMENTATION NOTES
+If the
+.Dv HAVE_STRLCAT
+preprocessor macro is defined to 0 or undefined, the
+.In tsd/sha1.h
+header provides a
+.Fn strlcat
+macro as an alias to
+.Fn tsd_strlcat .
+.Sh SEE ALSO
+.Xr strlcat 3 ,
+.Xr strlcpy 3 ,
+.Xr tsd_strlcpy 3
+.Sh AUTHORS
+The
+.Fn tsd_strlcat
+function and this manual page were written for the University of Oslo
+by
+.An Dag-Erling Sm\(/orgrav Aq Mt d.e.smorgrav@usit.uio.no .

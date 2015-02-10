@@ -1,0 +1,147 @@
+.\"-
+.\" Copyright (c) 2015 Universitetet i Oslo
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\" 3. The name of the author may not be used to endorse or promote
+.\"    products derived from this software without specific prior written
+.\"    permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd February 5, 2015
+.Dt TSD_TASK_SET 3
+.Os
+.Sh NAME
+.Nm tsd_tset_create ,
+.Nm tsd_tset_destroy ,
+.Nm tsd_tset_insert ,
+.Nm tsd_tset_remove ,
+.Nm tsd_tset_find ,
+.Nm tsd_tset_first ,
+.Nm tsd_tset_next ,
+.Nm tsd_tset_signal
+.Nd task set management
+.Sh LIBRARY
+.Lb libtsd
+.Sh SYNOPSIS
+.In sys/types.h
+.In tsd/task.h
+.Ft struct tsd_tset *
+.Fn tsd_tset_create "const char *name"
+.Ft void
+.Fn tsd_tset_destroy "struct tsd_tset *set"
+.Ft int
+.Fn tsd_tset_insert "struct tsd_tset *set" "struct tsd_task *task"
+.Ft int
+.Fn tsd_tset_remove "struct tsd_tset *set" "struct tsd_task *task"
+.Ft struct tsd_task *
+.Fn tsd_tset_find "struct tsd_tset *set" "const char *name"
+.Ft struct tsd_task *
+.Fn tsd_tset_first "struct tsd_tset *set"
+.Ft struct tsd_task *
+.Fn tsd_tset_next "struct tsd_tset *set" "const struct tsd_task *task"
+.Ft int
+.Fn tsd_tset_signal "const struct tsd_tset *set" "int sig"
+.Sh DESCRIPTION
+The
+.Nm tsd_task_set
+API is used to create and manage sets of tasks created with the
+.Xr tsd_task 3
+API.
+.Pp
+A task set is an arbitrary collection of tasks which the application
+chooses to group together.
+The only requirement is that each task in a set must have a unique
+name.
+A task can only belong to one set at a time.
+.Pp
+The
+.Fn tsd_tset_create
+function creates a new task set.
+The name can be an arbitrary string of up to 64 characters including
+the terminating NUL, and is mostly decorative.
+.Pp
+The
+.Fn tsd_tset_destroy
+function destroys the given task set.
+This does not affect the tasks themselves, except that their set
+affiliation is cleared.
+.Pp
+The
+.Fn tsd_tset_insert
+function inserts the given task into the task set.
+Its name must be different from the names of every other task in the
+set.
+.Pp
+The
+.Fn tsd_tset_remove
+function removes the given task from the task set.
+.Pp
+The
+.Fn tsd_tset_find
+function returns the task with the given name, or
+.Dv NULL
+if no task by that name exists in the set.
+.Pp
+The
+.Fn tsd_tset_first
+and
+.Fn tsd_tset_next
+functions allow the caller to iterate over all tasks in a set.
+The
+.Fn tsd_tset_first
+function returns the first task in the iteration order, or
+.Dv NULL if the set is empty.
+Each subsequent call to
+.Fn tsd_tset_next ,
+with the previous task as its second argument, returns either the next
+task in the iteration order or
+.Dv NULL
+if there are no more tasks.
+.Pp
+The
+.Fn tsd_tset_signal
+function sends a signal to all tasks in a set.
+See
+.Xr kill 2
+for a list of signals and their meanings.
+.Sh RETURN VALUES
+TBW
+.Sh IMPLEMENTATION NOTES
+The tasks are stored in an open hash indexed on the
+.Xr tsd_hash 3
+values of their names.
+As a consequence, the order in which tasks are returned by
+.Fn tsd_tset_first
+and
+.Fn tsd_tset_find
+is not fully deterministic, as tasks whose hash values coincide will
+be returned in the order in which they were inserted.
+.Sh SEE ALSO
+.Xr kill 2 ,
+.Xr tsd_hash 3 ,
+.Xr tsd_task 3 ,
+.Xr tsd_task_queue 3
+.Sh AUTHORS
+The
+.Fn tsd_task_set
+API and this manual page were written for the University of Oslo by
+.An Dag-Erling Sm\(/orgrav Aq Mt d.e.smorgrav@usit.uio.no .

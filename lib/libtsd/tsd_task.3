@@ -1,0 +1,249 @@
+.\"-
+.\" Copyright (c) 2015 Universitetet i Oslo
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\" 3. The name of the author may not be used to endorse or promote
+.\"    products derived from this software without specific prior written
+.\"    permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd February 5, 2015
+.Dt TSD_TASK 3
+.Os
+.Sh NAME
+.Nm tsd_task_create ,
+.Nm tsd_task_destroy ,
+.Nm tsd_task_setuser ,
+.Nm tsd_task_setcred ,
+.Nm tsd_task_start ,
+.Nm tsd_task_stop ,
+.Nm tsd_task_signal ,
+.Nm tsd_task_poll ,
+.Nm tsd_task_reset
+.Nd task management
+.Sh LIBRARY
+.Lb libtsd
+.Sh SYNOPSIS
+.In sys/types.h
+.In tsd/task.h
+.Ft typedef "void \*(lp*tsd_task_func\*(rp \*(lpvoid *\*(rp" ;
+.Pp
+.Ft struct tsd_task *
+.Fn tsd_task_create "const char *name" "tsd_task_func *func" "void *data"
+.Ft void
+.Fn tsd_task_destroy "struct tsd_task *task"
+.Ft int
+.Fn tsd_task_setuser "struct tsd_task *task" "const char *user"
+.Ft int
+.Fn tsd_task_setcred "struct tsd_task *task" "uid_t uid" "gid_t *gids" "int ngids"
+.Ft int
+.Fn tsd_task_start "struct tsd_task *task"
+.Ft int
+.Fn tsd_task_stop "struct tsd_task *task"
+.Ft int
+.Fn tsd_task_signal "struct tsd_task *task" "int sig"
+.Ft int
+.Fn tsd_task_poll "struct tsd_task *task"
+.Ft int
+.Fn tsd_task_reset "struct tsd_task *task"
+.Sh DESCRIPTION
+The
+.Nm tsd_task
+API is used to create and manage tasks to be run in subprocesses.
+The companion
+.Xr tsd_task_set 3
+and
+.Xr tsd_task_queue 3
+APIs can be used in addition to the
+.Nm tsd_task
+API to manage task sets and queues.
+.Pp
+The
+.Fn tsd_task_create
+function creates a new task.
+The name can be an arbitrary string of up to 64 characters including
+the terminating NUL, and is mostly decorative, unless the task is
+assigned to a task set (see
+.Xr tsd_task_set 3 Ns ),
+in which case it must be unique within a task set.
+The
+.Va func
+argument points to a function which will be called within the child
+process when the task is started.
+This function will normally execute an external program using
+.Xr execve 2
+or similar.
+The final argument,
+.Va data ,
+points to caller-defined data and is passed unmodified to the child
+function when the task is started.
+.Pp
+The
+.Fn tsd_task_destroy
+function destroys the specified task.
+If the task is running, it is first stopped.
+It is then removed from any sets and / or queues to which it may
+belong.
+Finally, all resources allocated by the
+.Nm tsd_task
+API on the task's behalf are released.
+.Pp
+The
+.Fn tsd_task_setcred
+and
+.Fn tsd_task_setuser
+functions are used to specify credentials with which the task should
+run.
+These credentials are set before the child function is invoked.
+The
+.Fn tsd_task_setcred
+function is used to pass a UID and a set of GIDs directly, while the
+.Fn tsd_task_setuser
+function is used to pass the name of a user whose credentials should
+be used.
+.Pp
+The
+.Fn tsd_task_start
+function starts the given task.
+It sets up any requested pipes, forks a child process, sets the
+requested credentials and finally invokes the child function.
+.Pp
+The
+.Fn tsd_task_stop
+function stops the given task.
+It first checks whether the child process has already terminated.
+If that is not the case, it will send
+.Dv SIGCONT ,
+.Dv SIGTERM
+and
+.Dv SIGKILL ,
+in that order, with a brief pause after each signal to give the child
+process time to react.
+.\" XXX should we mark the task as TASK_KILLED instead of TASK_DEAD,
+.\" XXX so we can still reap it if it wakes up and dies later, perhaps
+.\" XXX due to having been swapped out on a heavily loaded system?
+.Pp
+The
+.Fn tsd_task_signal
+function sends the specified signal to the child process.
+.Pp
+The
+.Fn tsd_task_poll
+function polls a task to see if it is still running.
+If not, it reaps the child process and sets the task state to reflect
+the outcome (see the
+.Sx TASK STATES
+section below).
+.Pp
+The
+.Fn tsd_task_reset
+function resets a task to the
+.Dv TASK_IDLE
+(runnable) state after it has stopped so it can be started again in
+the future.
+.Sh TASK STATES
+The
+.Va state
+member of
+.Vt struc tsd_task
+indicates the current state of the task.
+The following states are defined:
+.Bl -tag -width "TASK_FINISHED"
+.\" .It Dv TASK_INVALID
+.\" The task is in an inconsistent state.
+.\" Defined but not used.
+.It Dv TASK_IDLE
+The task is idle and can be started.
+.\" .It Dv TASK_QUEUED
+.\" The task is queued to be started as soon as there is an available
+.\" slot.
+.\" See
+.\" .Xr tsd_tqueue 3 .
+.\" Defined but not used.
+.It Dv TASK_STARTING
+The task is in the process of starting.
+This state is only used internally and should not be visible to the
+caller.
+.It Dv TASK_RUNNING
+The task is currently running.
+.It Dv TASK_STOPPING
+The task is in the process of stopping.
+This state is only used internally and should not be visible to the
+caller.
+.It Dv TASK_STOPPED
+The task has stopped.
+It terminated normally and returned an exit code of 0.
+.It Dv TASK_DEAD
+An error occurred within
+.Fn tsd_task_start ,
+.Fn tsd_task_poll
+or
+.Fn tsd_task_stop ,
+or the task was terminated by a signal.
+In the latter case, the
+.Va status
+member of
+.Vt struct tsd_task
+contain the exit status of the child process as returned by the
+.Xr wait 2
+family of system calls.
+.\" XXX we should have separate states for these
+.It Dv TASK_FINISHED
+This state is not used internally, but can be used by the caller to
+mark a task as having completed successfully.
+.\" XXX that's dumb
+.It Dv TASK_FAILED
+The task terminated normally and returned a non-zero exit code.
+The
+.Va status
+member of
+.Vt struct tsd_task
+contain the exit status of the child process as returned by the
+.Xr wait 2
+family of system calls.
+.El
+.Sh RETURN VALUES
+TBW
+.Sh IMPLEMENTATION NOTES
+The
+.Fn tsd_task_stop
+function cannot be relied upon to terminate a child cleanly and should
+be used on a best-effort basis as a last resort.
+The preferred method is to use a pre-established communication channel
+to somehow instruct the child to finish its work, and call
+.Fn tsd_task_poll
+regularly until it reports that the task has stopped.
+.Sh BUGS
+The use of pipes to communicate with the child process is mentioned
+but not described.
+.Sh SEE ALSO
+.Xr execve 2 ,
+.Xr fork 2 ,
+.Xr kill 2 ,
+.Xr pipe 2 ,
+.Xr tsd_task_queue 3 ,
+.Xr tsd_task_set 3
+.Sh AUTHORS
+The
+.Fn tsd_task
+API and this manual page were written for the University of Oslo by
+.An Dag-Erling Sm\(/orgrav Aq Mt d.e.smorgrav@usit.uio.no .

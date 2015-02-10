@@ -1,0 +1,78 @@
+.\"-
+.\" Copyright (c) 2015 Universitetet i Oslo
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\" 3. The name of the author may not be used to endorse or promote
+.\"    products derived from this software without specific prior written
+.\"    permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd February 5, 2015
+.Dt TSD_HASH 3
+.Os
+.Sh NAME
+.Nm tsd_hash ,
+.Nm tsd_strhash
+.Nd hash functions
+.Sh LIBRARY
+.Lb libtsd
+.Sh SYNOPSIS
+.In stdint.h
+.In tsd/hash.h
+.Ft uint8_t
+.Fn tsd_hash "const void *data" "size_t len"
+.Ft uint8_t
+.Fn tsd_strhash "const char *str"
+.Sh DESCRIPTION
+The
+.Fn tsd_hash
+function returns an 8-bit hash of the
+.Va len
+first bytes of the object pointed to by
+.Va data .
+.Pp
+The
+.Fn tsd_strhash
+function returns an 8-bit hash of the NUL-terminated string pointed to
+by
+.Va str ,
+not including the terminating NUL.
+It is equivalent to calling
+.Li tsd_hash(str, strlen(str)) .
+.Sh SEE ALSO
+.Xr tsd_sha1 3
+.Sh REFERENCES
+.Rs
+.%A Pearson, Peter K.
+.%D June 1990
+.%T Fast Hashing of Variable-Length Text Strings
+.%J Communications of the ACM
+.%V 33
+.%N 6
+.%P 677
+.%O doi:10.1145/78973.78978
+.Re
+.Sh AUTHORS
+The
+.Fn tsd_hash
+functions and this manual page were written for the University of Oslo by
+.An Dag-Erling Sm\(/orgrav Aq Mt d.e.smorgrav@usit.uio.no .

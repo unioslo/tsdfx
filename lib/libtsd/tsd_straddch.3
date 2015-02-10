@@ -1,0 +1,117 @@
+.\"-
+.\" Copyright (c) 2012 Dag-Erling Smørgrav
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\" 3. The name of the author may not be used to endorse or promote
+.\"    products derived from this software without specific prior written
+.\"    permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd February 5, 2015
+.Dt TSD_STRADDCH 3
+.Os
+.Sh NAME
+.Nm tsd_straddch
+.Nd add a character to a string, expanding the buffer if needed
+.Sh SYNOPSIS
+.In sys/types.h
+.In security/pam_appl.h
+.In security/tsd.h
+.Ft "int"
+.Fn tsd_straddch "char **str" "size_t *size" "size_t *len" "int ch"
+.Sh DESCRIPTION
+The
+.Fn tsd_straddch
+function appends a character to a dynamically allocated NUL-terminated
+buffer, reallocating the buffer as needed.
+.Pp
+The
+.Fa str
+argument points to a variable containing either a pointer to an
+existing buffer or
+.Dv NULL .
+If the value of the variable pointed to by
+.Fa str
+is
+.Dv NULL ,
+a new buffer is allocated.
+.Pp
+The
+.Fa size
+and
+.Fa len
+argument point to variables used to hold the size of the buffer and
+the length of the string it contains, respectively.
+.Pp
+The final argument,
+.Fa ch ,
+is the character that should be appended to the string.  If
+.Fa ch
+is 0, nothing is appended, but a new buffer is still allocated if
+.Fa str
+is NULL.  This can be used to
+.Do
+bootstrap
+.Dc
+the string.
+.Pp
+If a new buffer is allocated or an existing buffer is reallocated to
+make room for the additional character,
+.Fa str
+and
+.Fa size
+are updated accordingly.
+.Pp
+The
+.Fn tsd_straddch
+function ensures that the buffer is always NUL-terminated.
+.Pp
+If the
+.Fn tsd_straddch
+function is successful, it increments the integer variable pointed to
+by
+.Fa len
+(unless
+.Fa ch
+was 0) and returns 0.
+Otherwise, it leaves the variables pointed to by
+.Fa str ,
+.Fa size
+and
+.Fa len
+unmodified, sets
+.Va errno
+to
+.Dv ENOMEM
+and returns -1.
+.Pp
+.Sh RETURN VALUES
+The
+.Fn tsd_straddch
+function returns 0 on success and -1 on failure.
+.Sh AUTHORS
+The
+.Fn tsd_straddch
+function and this manual page were originally developed for the
+OpenPAM project by
+.An Dag-Erling Sm\(/orgrav Aq Mt des@des.no
+and adapted for use by the Unversity of Oslo's TSD project.
