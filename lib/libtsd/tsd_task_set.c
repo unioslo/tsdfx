@@ -70,7 +70,17 @@ tsd_tset_create(const char *name)
 void
 tsd_tset_destroy(struct tsd_tset *ts)
 {
+	struct tsd_task *t;
+	unsigned int h;
 
+	for (h = 0; h < sizeof ts->tasks / sizeof *ts->tasks; ++h) {
+		while (ts->tasks[h] != NULL) {
+			t = ts->tasks[h];
+			ts->tasks[h] = t->snext;
+			t->set = NULL;
+			t->snext = NULL;
+		}
+	}
 	memset(ts, 0, sizeof *ts);
 	free(ts);
 }
@@ -83,6 +93,10 @@ tsd_tset_insert(struct tsd_tset *ts, struct tsd_task *t)
 {
 	struct tsd_task **tpp;
 
+	if (t->set != NULL) {
+		errno = EBUSY;
+		return (-1);
+	}
 	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
 	assert(t->snext == NULL);
 	assert(t->set == NULL);
@@ -109,6 +123,10 @@ tsd_tset_remove(struct tsd_tset *ts, struct tsd_task *t)
 {
 	struct tsd_task **tpp;
 
+	if (t->set != ts) {
+		errno = ENOENT;
+		return (-1);
+	}
 	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
 	assert(t->set == ts);
 	for (tpp = &ts->tasks[t->h]; *tpp != NULL; tpp = &(*tpp)->snext) {
@@ -153,11 +171,14 @@ tsd_tset_find(const struct tsd_tset *ts, const char *name)
 struct tsd_task *
 tsd_tset_first(const struct tsd_tset *ts)
 {
-	unsigned int i;
+	unsigned int h;
 
-	for (i = 0; i < sizeof ts->tasks / sizeof *ts->tasks; ++i)
-		if (ts->tasks[i] != NULL)
-			return (ts->tasks[i]);
+	for (h = 0; h < sizeof ts->tasks / sizeof *ts->tasks; ++h) {
+		if (ts->tasks[h] != NULL) {
+			assert(ts->tasks[h]->h == h);
+			return (ts->tasks[h]);
+		}
+	}
 	return (NULL);
 }
 
@@ -167,14 +188,37 @@ tsd_tset_first(const struct tsd_tset *ts)
 struct tsd_task *
 tsd_tset_next(const struct tsd_tset *ts, const struct tsd_task *t)
 {
-	unsigned int i;
+	unsigned int h;
 
+	if (t == NULL)
+		return (tsd_tset_first(ts));
 	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
 	assert(t->set == ts);
-	if (t->snext != NULL)
+	if (t->snext != NULL) {
+		assert(t->snext->set == ts);
 		return (t->snext);
-	for (i = t->h + 1; i < sizeof ts->tasks / sizeof *ts->tasks; ++i)
-		if (ts->tasks[i] != NULL)
-			return (ts->tasks[i]);
+	}
+	for (h = t->h + 1; h < sizeof ts->tasks / sizeof *ts->tasks; ++h) {
+		if (ts->tasks[h] != NULL) {
+			assert(ts->tasks[h]->h == h);
+			assert(ts->tasks[h]->set == ts);
+			return (ts->tasks[h]);
+		}
+	}
 	return (NULL);
+}
+
+/*
+ * Send a signal to all running processes in the set
+ */
+int
+tsd_tset_signal(const struct tsd_tset *ts, int sig)
+{
+	struct tsd_task *t;
+	int ret = 0;
+
+	for (t = tsd_tset_first(ts); t != NULL; t = tsd_tset_next(ts, t))
+		if (tsd_task_signal(t, sig) != 0)
+			ret = -1;
+	return (ret);
 }

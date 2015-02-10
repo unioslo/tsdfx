@@ -34,7 +34,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <assert.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <tsd/log.h>
@@ -43,55 +45,109 @@
 /*
  * Create a new task queue
  */
-struct tsd_taskq *
-tsd_taskq_create(void)
+struct tsd_tqueue *
+tsd_tqueue_create(const char *name, unsigned int max)
 {
+	struct tsd_tqueue *tq;
 
-	return (NULL);
+	if ((tq = calloc(1, sizeof *tq)) == NULL)
+		return (NULL);
+	if (strlcpy(tq->name, name, sizeof tq->name) >= sizeof tq->name) {
+		free(tq);
+		errno = ENAMETOOLONG;
+		return (NULL);
+	}
+	tq->max_running = max;
+	return (tq);
 }
 
 /*
  * Destroy a task queue
  */
-int
-tsd_taskq_destroy(struct tsd_taskq *tq)
+void
+tsd_tqueue_destroy(struct tsd_tqueue *tq)
 {
 
-	(void)tq;
-	return (-1);
+	memset(tq, 0, sizeof *tq);
+	free(tq);
 }
 
 /*
  * Add a task to a queue
  */
 int
-tsd_taskq_insert(struct tsd_taskq *tq, struct tsd_task *t)
+tsd_tqueue_insert(struct tsd_tqueue *tq, struct tsd_task *t)
 {
 
-	(void)tq;
-	(void)t;
-	return (-1);
+	if (t->queue != NULL) {
+		errno = EBUSY;
+		return (-1);
+	}
+	assert(t->qprev == NULL && t->qnext == NULL);
+	if (tq->first == NULL) {
+		assert(tq->last == NULL);
+		tq->first = tq->last = t;
+	} else {
+		assert(tq->last != NULL);
+		assert(tq->last->qnext == NULL);
+		t->qprev = tq->last;
+		tq->last->qnext = t;
+		tq->last = t;
+	}
+	if (t->state == TASK_RUNNING || t->state == TASK_STOPPING) {
+		/* why would you do that? */
+		tq->nrunning++;
+	}
+	tq->ntasks++;
+	t->queue = tq;
+	return (0);
 }
 
 /*
  * Remove a task from its queue
  */
 int
-tsd_taskq_remove(struct tsd_taskq *tq, struct tsd_task *t)
+tsd_tqueue_remove(struct tsd_tqueue *tq, struct tsd_task *t)
 {
 
-	(void)tq;
-	(void)t;
+	if (t->queue != tq) {
+		errno = ENOENT;
+		return (-1);
+	}
+	if (t->qprev != NULL)
+		t->qprev->qnext = t->qnext;
+	if (t->qnext != NULL)
+		t->qnext->qprev = t->qprev;
+	if (tq->first == t)
+		tq->first = t->qnext;
+	if (tq->last == t)
+		tq->last = t->qprev;
+	if (t->state == TASK_RUNNING || t->state == TASK_STOPPING)
+		tq->nrunning--;
+	tq->ntasks--;
+	t->queue = NULL;
 	return (-1);
 }
 
 /*
- * Get the next runnable task from a queue
+ * Start any runnable tasks if we have free slots.
  */
-struct tsd_task *
-tsd_taskq_next(struct tsd_taskq *tq)
+unsigned int
+tsd_tqueue_sched(struct tsd_tqueue *tq)
 {
+	struct tsd_task *t;
 
-	(void)tq;
-	return (NULL);
+	/*
+	 * Scan the queue looking for runnable tasks and try to start them
+	 * if we are not already over the limit.  No housekeeping is done
+	 * here since tsd_task_start() will either increment our nrunning
+	 * or remove the task from the queue if it failed to start.
+	 */
+	for (t = tq->first; t != NULL; t = t->qnext) {
+		if (tq->nrunning >= tq->max_running)
+			break;
+		if (t->state == TASK_IDLE)
+			tsd_task_start(t);
+	}
+	return (tq->nrunning);
 }

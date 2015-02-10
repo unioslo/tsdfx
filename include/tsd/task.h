@@ -84,7 +84,7 @@ struct tsd_task {
 	struct tsd_tset		*set;
 	struct tsd_task		*snext;
 	struct tsd_tqueue	*queue;
-	struct tsd_tqueue	*qnext;
+	struct tsd_task		*qprev, *qnext;
 
 	/* user data */
 	void			*ud;
@@ -98,6 +98,11 @@ struct tsd_tset {
 };
 
 struct tsd_tqueue {
+	char			 name[64];
+	unsigned int		 max_running;
+	struct tsd_task		*first, *last;
+	unsigned int		 ntasks;
+	unsigned int		 nrunning;
 };
 
 struct tsd_task *tsd_task_create(const char *, tsd_task_func *, void *);
@@ -106,6 +111,7 @@ int tsd_task_setcred(struct tsd_task *, uid_t, gid_t *, int);
 void tsd_task_destroy(struct tsd_task *);
 int tsd_task_start(struct tsd_task *);
 int tsd_task_stop(struct tsd_task *);
+int tsd_task_signal(const struct tsd_task *, int);
 int tsd_task_reset(struct tsd_task *);
 int tsd_task_poll(struct tsd_task *);
 
@@ -116,5 +122,12 @@ int tsd_tset_remove(struct tsd_tset *, struct tsd_task *);
 struct tsd_task *tsd_tset_find(const struct tsd_tset *, const char *);
 struct tsd_task *tsd_tset_first(const struct tsd_tset *);
 struct tsd_task *tsd_tset_next(const struct tsd_tset *, const struct tsd_task *);
+int tsd_tset_signal(const struct tsd_tset *, int);
+
+struct tsd_tqueue *tsd_tqueue_create(const char *, unsigned int);
+void tsd_tqueue_destroy(struct tsd_tqueue *);
+int tsd_tqueue_insert(struct tsd_tqueue *, struct tsd_task *);
+int tsd_tqueue_remove(struct tsd_tqueue *, struct tsd_task *);
+unsigned int tsd_tqueue_sched(struct tsd_tqueue *);
 
 #endif
