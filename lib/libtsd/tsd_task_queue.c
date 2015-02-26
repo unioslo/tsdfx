@@ -40,6 +40,7 @@
 #include <string.h>
 
 #include <tsd/log.h>
+#include <tsd/strutil.h>
 #include <tsd/task.h>
 
 /*
