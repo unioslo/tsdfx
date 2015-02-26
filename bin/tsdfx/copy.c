@@ -335,6 +335,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
 	size_t slen, dlen, maxlen;
 	const char *p, *q;
+	int mode;
 
 	/* prime the source and destination paths */
 	slen = strlcpy(srcpath, srcdir, sizeof srcpath);
@@ -376,6 +377,31 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 		if (lstat(srcpath, &srcst) != 0) {
 			WARNING("%s: %s", srcpath, strerror(errno));
 			continue;
+		}
+
+		/* ignore everything except files and directories */
+		if (!S_ISREG(srcst.st_mode) && !S_ISDIR(srcst.st_mode)) {
+			WARNING("%s: neither file nor directory", srcpath);
+			continue;
+		}
+
+		/*
+		 * Some SFTP clients seem to mangle file permissions so we
+		 * sometimes end up with files or directories on the
+		 * import side with weird permissions, or even none at
+		 * all.  Try to force a sane minimum set of permissions.
+		 */
+		mode = srcst.st_mode;
+		if ((mode & 0640) != 0640) {
+			mode |= 0640;
+			if (S_ISDIR(mode) && (mode & 0110) != 0110)
+				mode |= 0110;
+			NOTICE("%s: changing permissions from %o to %o",
+			    srcpath, srcst.st_mode & 07777, mode & 07777);
+			if (chmod(srcpath, mode & 07777) != 0)
+				WARNING("%s: %s", srcpath, strerror(errno));
+			else
+				srcst.st_mode = mode;
 		}
 
 		/* check destination */
