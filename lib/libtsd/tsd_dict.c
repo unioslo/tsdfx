@@ -31,6 +31,8 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -40,31 +42,137 @@
 #include <tsd/hash.h>
 
 struct tsd_dict_ent {
-	char *key;
-	void *value;
-	struct tsd_dict_ent *prev, *next;
+	const char		*key;
+	unsigned int		 h;
+	void			*value;
+	struct tsd_dict_ent	*next;
 };
 
 struct tsd_dict {
-	struct tsd_dict_ent *bins[256];
-	struct tsd_dict_ent *first;
+	struct tsd_dict_ent	*entries[256];
+	unsigned int		 nentries;
 };
 
+/*
+ * Create a dictionary
+ */
 struct tsd_dict *
-tsd_dict_new(void)
+tsd_dict_create(void)
 {
-	struct tsd_dict *dict;
+	struct tsd_dict *d;
 
 	/* allocate */
-	if ((dict = calloc(1, sizeof *dict)) == NULL)
+	if ((d = calloc(1, sizeof *d)) == NULL)
 		return (NULL);
-	return (dict);
+	return (d);
 }
 
+/*
+ * Destroy a dictionary
+ */
 void
-tsd_dict_free(struct tsd_dict *dict)
+tsd_dict_destroy(struct tsd_dict *d)
 {
+	struct tsd_dict_ent *e;
+	unsigned int h;
 
-	/* XXX free contents first */
-	free(dict);
+	for (h = 0; h < sizeof d->entries / sizeof *d->entries; ++h) {
+		while (d->entries[h] != NULL) {
+			e = d->entries[h];
+			d->entries[h] = e->next;
+			free(e);
+		}
+	}
+	free(d);
+}
+
+/*
+ * Add an entry to a dictionary
+ */
+int
+tsd_dict_insert(struct tsd_dict *d, const char *key, void *value)
+{
+	struct tsd_dict_ent **epp;
+	unsigned int h;
+
+	h = tsd_strhash(key);
+	assert(h < sizeof d->entries / sizeof *d->entries);
+	for (epp = &d->entries[h]; *epp != NULL; epp = &(*epp)->next) {
+		assert((*epp)->h == h);
+		if (strcmp((*epp)->key, key) == 0) {
+			errno = EEXIST;
+			return (-1);
+		}
+	}
+	if ((*epp = calloc(1, sizeof **epp)) == NULL)
+		return (-1);
+	(*epp)->key = key;
+	(*epp)->h = h;
+	(*epp)->value = value;
+	d->nentries++;
+	return (0);
+}
+
+/*
+ * Remove an entry from a dictionary
+ */
+int
+tsd_dict_remove(struct tsd_dict *d, const char *key)
+{
+	struct tsd_dict_ent *ep, **epp;
+	unsigned int h;
+
+	h = tsd_strhash(key);
+	assert(h < sizeof d->entries / sizeof *d->entries);
+	for (epp = &d->entries[h]; *epp != NULL; epp = &(*epp)->next) {
+		assert((*epp)->h == h);
+		if (strcmp((*epp)->key, key) == 0) {
+			ep = *epp;
+			*epp = ep->next;
+			free(ep);
+			d->nentries--;
+			return (0);
+		}
+	}
+	errno = ENOENT;
+	return (-1);
+}
+
+/*
+ * Iterate over a dictionary: first entry
+ */
+const struct tsd_dict_ent *
+tsd_dict_first(const struct tsd_dict *d)
+{
+	unsigned int h;
+
+	for (h = 0; h < sizeof d->entries / sizeof *d->entries; ++h) {
+		if (d->entries[h] != NULL) {
+			assert(d->entries[h]->h == h);
+			return (d->entries[h]);
+		}
+	}
+	return (NULL);
+}
+
+/*
+ * Iterate over a dictionary: next entry
+ */
+const struct tsd_dict_ent *
+tsd_dict_next(const struct tsd_dict *d, const struct tsd_dict_ent *e)
+{
+	unsigned int h;
+
+	if (e == NULL)
+		return (tsd_dict_first(d));
+	assert(e->h < sizeof d->entries / sizeof *d->entries);
+	if (e->next != NULL)
+		return (e->next);
+	for (h = e->h + 1; h < sizeof d->entries / sizeof *d->entries; ++h) {
+		if (d->entries[h] != NULL) {
+			assert(d->entries[h]->h == h);
+			return (d->entries[h]);
+		}
+	}
+	return (NULL);
 }
