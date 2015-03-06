@@ -1,13 +1,6 @@
-- getpwuid() + setgroups() to fix export permissions
-
 - Log ownership of each file after the transfer
 
-- Create directories
-
-- Move file copying code into unprivileged and chrooted child
-
-- Move size and time comparison out of the copier to avoid needlessly
-  fork()ing a child process
+- Implement chrooting of scanner and copier children
 
 - Add configuration file (separate from map file)
 
@@ -17,4 +10,5 @@
 - Add support for include directive to include individual files or
   entire directories into both the configuration and the map
 
-- Merge common subsets of the scan and copy child handling code
+- Implement separate queues based on file size for copy tasks so large
+  files don't hold up small ones indefinitely.
