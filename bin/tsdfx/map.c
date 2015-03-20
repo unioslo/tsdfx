@@ -197,7 +197,7 @@ map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
 	}
 	fclose(f);
 	/* sort and deduplicate */
-	mergesort(m, len, sizeof *m, map_compare);
+	qsort(m, len, sizeof *m, map_compare);
 	for (i = 0; i + 1 < len; ++i) {
 		for (j = i + 1; j < len; ++j) {
 			if (strcmp(m[i]->name, m[j]->name) != 0)
