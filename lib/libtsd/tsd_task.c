@@ -102,10 +102,9 @@ tsd_task_create(const char *name, tsd_task_func *func, void *ud)
 void
 tsd_task_destroy(struct tsd_task *t)
 {
-
-	VERBOSE("%s", t->name);
 	if (t == NULL)
 		return;
+	VERBOSE("%s", t->name);
 	if (t->state == TASK_RUNNING)
 		tsd_task_stop(t);
 	if (t->queue != NULL)

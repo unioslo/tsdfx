@@ -328,10 +328,13 @@ tsdfx_scan_stop(struct tsd_task *t)
 void
 tsdfx_scan_delete(struct tsd_task *t)
 {
-	struct tsdfx_scan_task_data *std = t->ud;
+	struct tsdfx_scan_task_data *std;
 
 	if (t == NULL)
 		return;
+
+	std = t->ud;
+
 	VERBOSE("%s", std->path);
 	tsdfx_scan_stop(t);
 	tsdfx_scan_remove(t);
