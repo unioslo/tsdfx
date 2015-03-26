@@ -6,7 +6,6 @@ tsdfx_SOURCES += tsdfx.c
 tsdfx_SOURCES += copy.c
 tsdfx_SOURCES += map.c
 tsdfx_SOURCES += scan.c
-tsdfx_SOURCES += worker.c
 tsdfx_LDADD = $(CRYPTO_LIBS) $(top_builddir)/lib/libtsd/libtsd.la
 noinst_HEADERS =
 noinst_HEADERS += tsdfx.h
