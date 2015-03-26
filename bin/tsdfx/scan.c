@@ -230,6 +230,7 @@ tsdfx_scan_new(const char *path)
 	std->buflen = 0;
 	if ((std->buf = malloc(std->bufsz)) == NULL)
 		goto fail;
+	std->buf[0] = '\0';
 	std->interval = SCAN_INTERVAL; /* XXX should be tunable */
 
 	/* create task and set credentials */
