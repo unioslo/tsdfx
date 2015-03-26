@@ -56,6 +56,7 @@
 #include <tsd/strutil.h>
 
 static int tsdfx_dryrun;
+static int tsdfx_force;
 
 static mode_t mumask;
 
@@ -443,7 +444,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		goto fail;
 
 	/* compare size and times */
-	if (copyfile_comparestat(src, dst) == 0) {
+	if (!tsdfx_force && copyfile_comparestat(src, dst) == 0) {
 		VERBOSE("mode, size and mtime match");
 		copyfile_close(src);
 		copyfile_close(dst);
@@ -548,8 +549,11 @@ main(int argc, char *argv[])
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
-	while ((opt = getopt(argc, argv, "hnv")) != -1)
+	while ((opt = getopt(argc, argv, "fhnv")) != -1)
 		switch (opt) {
+		case 'f':
+			++tsdfx_force;
+			break;
 		case 'n':
 			++tsdfx_dryrun;
 			break;
