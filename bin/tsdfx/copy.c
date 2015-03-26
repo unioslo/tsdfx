@@ -230,10 +230,13 @@ fail:
 static void
 tsdfx_copy_delete(struct tsd_task *t)
 {
-	struct tsdfx_copy_task_data *ctd = t->ud;
+	struct tsdfx_copy_task_data *ctd;
 
 	if (t == NULL)
 		return;
+
+	ctd = t->ud;
+
 	VERBOSE("%s -> %s", ctd->src, ctd->dst);
 	tsdfx_copy_stop(t);
 	tsdfx_copy_remove(t);
