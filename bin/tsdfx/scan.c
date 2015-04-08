@@ -266,10 +266,9 @@ tsdfx_scan_child(void *ud)
 	int argc;
 
 	/* check credentials */
-	if (std->st.st_uid == 0)
-		WARNING("scanning %s with uid 0", std->path);
-	if (std->st.st_gid == 0)
-		WARNING("scanning %s with gid 0", std->path);
+	if (geteuid() == 0 || getegid() == 0)
+		WARNING("scanning %s with uid %u gid %u", std->path,
+		    (unsigned int)geteuid(), (unsigned int)getegid());
 
 	/* change into the target directory, chroot if possible */
 	// XXX chroot code removed, move this into tsd_task_start()
