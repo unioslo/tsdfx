@@ -338,7 +338,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
 	size_t slen, dlen, maxlen;
 	const char *p, *q;
-	unsigned int mode;
+	mode_t mode;
 
 	/* prime the source and destination paths */
 	slen = strlcpy(srcpath, srcdir, sizeof srcpath);
