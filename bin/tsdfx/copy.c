@@ -256,9 +256,9 @@ tsdfx_copy_child(void *ud)
 
 	/* check credentials */
 	if (geteuid() == 0)
-		WARNING("copying %s with uid 0", ctd->src);
+		WARNING("copying %s with uid 0 (file owner missing required privileges?)", ctd->src);
 	if (getegid() == 0)
-		WARNING("copying %s with gid 0", ctd->src);
+		WARNING("copying %s with gid 0 (file owner missing required privileges?)", ctd->src);
 
 	/* set safe umask */
 	umask(TSDFX_COPY_UMASK);
