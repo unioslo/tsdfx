@@ -255,10 +255,9 @@ tsdfx_copy_child(void *ud)
 	int argc;
 
 	/* check credentials */
-	if (geteuid() == 0)
-		WARNING("copying %s with uid 0", ctd->src);
-	if (getegid() == 0)
-		WARNING("copying %s with gid 0", ctd->src);
+	if (geteuid() == 0 || getegid() == 0)
+		WARNING("copying %s with uid %u gid %u", ctd->src,
+		    (unsigned int)geteuid(), (unsigned int)getegid());
 
 	/* set safe umask */
 	umask(TSDFX_COPY_UMASK);

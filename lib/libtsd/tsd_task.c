@@ -279,13 +279,12 @@ tsd_task_start(struct tsd_task *t)
 
 		/* drop privileges */
 		if (geteuid() == 0 && t->gids[0] > 0 && t->uid != (uid_t)-1) {
-#if HAVE_SETGROUPS
-			ret = setgroups(t->ngids, t->gids);
-#else
-			ret = setgid(t->gids[0]);
-#endif
-			if (ret != 0)
+			if ((ret = setgid(t->gids[0])) != 0)
 				ERROR("failed to set process group");
+#if HAVE_SETGROUPS
+			else if ((ret = setgroups(t->ngids, t->gids)) != 0)
+				ERROR("failed to set additional process groups");
+#endif
 			else if ((ret = setuid(t->uid)) != 0)
 				ERROR("failed to set process user");
 			if (ret != 0)
