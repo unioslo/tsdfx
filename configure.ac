@@ -61,5 +61,7 @@ AC_CONFIG_FILES([
     libexec/Makefile
     libexec/scanner/Makefile
     libexec/copier/Makefile
+    t/Makefile
 ])
+AC_CONFIG_FILES([t/test.sh], [chmod +x t/test.sh])
 AC_OUTPUT
