@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -e
+
+testdir=`pwd`/test
+
+./configure --prefix=$testdir/prefix
+make
+make install
+
+cd $testdir
+
+export TSDFX_COPIER=$testdir/prefix/libexec/tsdfx-copier
+export TSDFX_SCANNER=$testdir/prefix/libexec/tsdfx-scanner
+export LD_LIBRARY_PATH=$testdir/prefix/lib
+
+cat > test.map <<EOF
+test: `pwd`/src => `pwd`/dest
+EOF
+
+rm -rf src dest
+mkdir -p src dest
+
+valgrind --leak-check=full $testdir/prefix/sbin/tsdfx -m $testdir/test.map &
+pid=$?
+
+echo test1 > src/test1
+echo 'test(2)' > "src/test (2).txt"
+
+sleep 5
+
+echo test2 > src/test2
+
+sleep 10
+
+if [ ! -e dest/test2 ]; then
+    echo error: missing dest/test2
+fi
+
+kill $pid
