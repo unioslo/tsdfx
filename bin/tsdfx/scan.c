@@ -400,11 +400,10 @@ tsdfx_scan_slurp(struct tsd_task *t)
 	struct tsdfx_scan_task_data *std = t->ud;
 	size_t bufsz;
 	ssize_t rlen;
-	char *buf, *p;
+	char *buf;
 	int len;
 
 	VERBOSE("%s", std->path);
-	p = std->buf + std->buflen;
 	len = 0;
 	do {
 		/* make sure we have room for at least one more character */
