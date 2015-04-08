@@ -338,7 +338,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
 	size_t slen, dlen, maxlen;
 	const char *p, *q;
-	int mode;
+	unsigned int mode;
 
 	/* prime the source and destination paths */
 	slen = strlcpy(srcpath, srcdir, sizeof srcpath);
@@ -395,10 +395,14 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 		 * all.  Try to force a sane minimum set of permissions.
 		 */
 		mode = srcst.st_mode;
-		if ((mode & 0640) != 0640) {
+		/* writeable for user, readable for group */
+		if ((mode & 0640) != 0640)
 			mode |= 0640;
-			if (S_ISDIR(mode) && (mode & 0110) != 0110)
-				mode |= 0110;
+		/* directories must also be searchable */
+		if (S_ISDIR(mode) && (mode & 0110) != 0110)
+			mode |= 0110;
+		/* apply changes */
+		if (mode != srcst.st_mode) {
 			NOTICE("%s: changing permissions from %o to %o",
 			    srcpath, srcst.st_mode & 07777, mode & 07777);
 			if (chmod(srcpath, mode & 07777) != 0)
