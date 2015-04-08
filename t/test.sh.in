@@ -1,0 +1,55 @@
+#!/bin/sh
+
+x() {
+	echo "$@"
+	"$@" > "${logfile}" 2>&1
+}
+
+fail() {
+	echo "FAIL $@" >&2
+	exit 1
+}
+
+set -e
+
+tstdir="@abs_builddir@/t$$"
+logfile="${tstdir}/log"
+mapfile="${tstdir}/map"
+srcdir="${tstdir}/src"
+dstdir="${tstdir}/dst"
+
+tsdfx="@abs_top_builddir@/bin/tsdfx/tsdfx"
+copier="@abs_top_builddir@/libexec/copier/tsdfx-copier"
+scanner="@abs_top_builddir@/libexec/scanner/tsdfx-scanner"
+
+export TSDFX_COPIER="${copier}"
+export TSDFX_SCANNER="${scanner}"
+
+mkdir "${tstdir}" "${srcdir}" "${dstdir}"
+
+cat >"${mapfile}" <<EOF
+test: ${srcdir} => ${dstdir}
+EOF
+
+echo test1 > "${srcdir}/test1"
+echo 'test(2)' > "${srcdir}/test (2).txt"
+echo test2 > "${srcdir}/test2"
+
+echo "logging to ${logfile}"
+x "${tsdfx}" -m "${mapfile}" -1v
+
+for good in test1 test2 ; do
+	if [ ! -e "${dstdir}/${good}" ] ; then
+		fail "missing: ${dstdir}/${good}"
+	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then
+		fail "incorrect: ${dstdir}/${good}"
+	fi
+done
+
+for bad in "test (2).txt" ; do
+	if [ -e "${bad}" ] ; then
+		fail "should not exist: ${bad}"
+	fi
+done
+
+rm -rf "${tstdir}"
