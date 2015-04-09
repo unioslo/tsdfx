@@ -48,6 +48,7 @@
 #include <tsd/log.h>
 #include <tsd/sbuf.h>
 #include <tsd/strutil.h>
+#include <tsd/percent.h>
 
 struct scan_entry {
 	struct sbuf *path;
@@ -166,8 +167,18 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 	for (p = de->d_name; *p; ++p) {
 		if (!is_pfcs(*p) && *p != ' ') { /* XXX allow spaces for now */
 			/* soft error */
-			NOTICE("invalid character in file %s/[%lu]",
-			    sbuf_data(parent), (unsigned long)de->d_ino);
+			size_t len = strlen(de->d_name);
+			size_t olen = percent_enclen(len);
+			char *encpath = calloc(1, olen);
+			if (0 == percent_encode(de->d_name, len, encpath, &olen)) {
+				NOTICE("invalid character in file '%s/%s' [inode %lu]",
+				       sbuf_data(parent), encpath,
+				       (unsigned long)de->d_ino);
+			} else {
+				NOTICE("invalid character in file '%s/[inode %lu]'",
+				       sbuf_data(parent), (unsigned long)de->d_ino);
+			}
+			free(encpath);
 			return (0);
 		}
 	}
