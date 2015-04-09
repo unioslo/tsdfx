@@ -56,6 +56,14 @@ usage(void)
 	exit(1);
 }
 
+static void
+showversion(void)
+{
+	fprintf(stderr, "%s\n\nReport bugs to %s and visit\n%s to learn more.\n\n",
+		PACKAGE_STRING, PACKAGE_BUGREPORT, PACKAGE_URL);
+	exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -70,7 +78,7 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "1C:hm:nS:v")) != -1)
+	while ((opt = getopt(argc, argv, "1C:hm:nS:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
@@ -89,6 +97,9 @@ main(int argc, char *argv[])
 			break;
 		case 'v':
 			++tsdfx_verbose;
+			break;
+		case 'V':
+			showversion();
 			break;
 		default:
 			usage();
