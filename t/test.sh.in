@@ -6,7 +6,13 @@ x() {
 }
 
 fail() {
-	echo "FAIL $@" >&2
+	(
+		echo "FAIL $@"
+		echo "last lines in log file:"
+		echo
+		tail -30 $logfile
+		echo
+	) >&2
 	exit 1
 }
 
