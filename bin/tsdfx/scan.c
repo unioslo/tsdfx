@@ -460,14 +460,7 @@ tsdfx_scan_poll(struct tsd_task *t)
 				if (tsdfx_scan_stop(t) == 0)
 					t->state = TASK_FAILED;
 		}
-		if (pfd.revents & POLLHUP) {
-			if (tsdfx_scan_stop(t) == 0)
-				t->state = TASK_FINISHED;
-		}
-		break;
-	case 0:
-		/* no, process has terminated */
-		if (tsdfx_scan_stop(t) == 0) {
+		if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
 			/* validate */
 			if (regexec(&scan_regex, std->buf, 0, NULL, 0) != 0) {
 				WARNING("invalid output from child %ld for %s",
@@ -477,6 +470,9 @@ tsdfx_scan_poll(struct tsd_task *t)
 				t->state = TASK_FINISHED;
 			}
 		}
+		break;
+	case 0:
+		/* no input for now */
 		break;
 	default:
 		/* oops */

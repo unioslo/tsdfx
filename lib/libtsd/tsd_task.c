@@ -335,7 +335,7 @@ fail:
 int
 tsd_task_stop(struct tsd_task *t)
 {
-	static const int sig[] = { SIGCONT, SIGTERM, SIGKILL, -1 };
+	static const int sig[] = { SIGCONT, SIGTERM, SIGKILL, 0, -1 };
 	int i, serrno;
 
 	VERBOSE("%s", t->name);
@@ -351,9 +351,7 @@ tsd_task_stop(struct tsd_task *t)
 		if (t->state != TASK_STOPPING)
 			break;
 		/* not dead yet; kill, wait 100 ms and retry */
-		if (sig[i])
-			kill(t->pid, sig[i]);
-		if (kill(t->pid, SIGCONT) != 0) {
+		if (kill(t->pid, sig[i]) != 0) {
 			serrno = errno;
 			WARNING("unable to signal child %d", (int)t->pid);
 			tsd_task_close(t, TASK_DEAD);
