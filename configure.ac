@@ -1,5 +1,5 @@
 AC_PREREQ([2.64])
-AC_INIT([TSD File eXchange], [1.20150413], [d.e.smorgrav@usit.uio.no], [tsdfx], [http://www.uio.no/tjenester/it/forskning/sensitiv/])
+AC_INIT([TSD File eXchange], [1.20150421], [d.e.smorgrav@usit.uio.no], [tsdfx], [http://www.uio.no/tjenester/it/forskning/sensitiv/])
 AC_CONFIG_SRCDIR([bin/tsdfx/tsdfx.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign])
