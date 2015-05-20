@@ -27,13 +27,10 @@
  * SUCH DAMAGE.
  */
 
-
 #ifndef TSD_LOG_H_INCLUDED
 #define TSD_LOG_H_INCLUDED
 
-#include <syslog.h>
-
-void tsd_log(int, const char *, int, const char *, const char *, ...);
+void tsd_log(const char *, int, const char *, const char *, ...);
 int tsd_log_init(void);
 
 extern int tsd_log_quiet;
@@ -42,26 +39,26 @@ extern int tsd_log_verbose;
 #define VERBOSE(...) \
 	do {								\
 		if (tsd_log_verbose)					\
-			tsd_log(LOG_INFO, __FILE__, __LINE__, __func__, \
+			tsd_log(__FILE__, __LINE__, __func__,		\
 			    __VA_ARGS__);				\
 	} while (0)
 
 #define NOTICE(...) \
 	do {								\
 		if (!tsd_log_quiet)					\
-		    tsd_log(LOG_NOTICE, __FILE__, __LINE__, __func__,   \
-			__VA_ARGS__);				        \
+			tsd_log(__FILE__, __LINE__, __func__,		\
+			    __VA_ARGS__);				\
 	} while (0)
 
 #define WARNING(...) \
 	do {								\
-		tsd_log(LOG_WARNING, __FILE__, __LINE__, __func__,	\
+		tsd_log(__FILE__, __LINE__, __func__,			\
 		    __VA_ARGS__);					\
 	} while (0)
 
 #define ERROR(...) \
 	do {								\
-		tsd_log(LOG_ERR, __FILE__, __LINE__, __func__,		\
+		tsd_log(__FILE__, __LINE__, __func__,			\
 		    __VA_ARGS__);					\
 	} while (0)
 
