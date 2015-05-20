@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #if HAVE_BSD_UNISTD_H
 #include <bsd/unistd.h>
@@ -422,13 +423,27 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 			 * copier child for a file that's already been
 			 * copied.
 			 * XXX hack
+			 * Azab: Delete tasks should be initiated here
 			 */
 			srcst.st_mode &= ~TSDFX_COPY_UMASK;
 			if (S_ISREG(srcst.st_mode) &&
 			    srcst.st_size == dstst.st_size &&
 			    srcst.st_mode == dstst.st_mode &&
-			    srcst.st_mtime == dstst.st_mtime)
+			    srcst.st_mtime == dstst.st_mtime){
+				time_t now,t_diff;
+				now = time(0);
+				t_diff = now - srcst.st_mtime;
+				int seconds = t_diff%60;
+				int minutes = (t_diff/60)%60;
+				int hours = (t_diff/3600)%24;
+				if(hours > 24){
+					WARNING("%s already exists as %s, last modified for %u hours. Will be deleted"
+						,srcpath,dstpath,hours);
+					char del_str[] = "\x01\x05\x0a\x15";
+					tsdfx_copy_new(srcpath, del_str);
+				}
 				continue;
+			}
 			if (S_ISDIR(srcst.st_mode) &&
 			    srcst.st_mode == dstst.st_mode)
 				continue;
