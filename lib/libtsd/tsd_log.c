@@ -31,16 +31,11 @@
 # include "config.h"
 #endif
 
-#define _GNU_SOURCE
-
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include <syslog.h>
-#include <string.h>
 
 #include <tsd/log.h>
 
@@ -54,58 +49,30 @@ int tsd_log_verbose = 0;
  * errno to spare the caller from having to do it.
  */
 void
-tsd_log(int priority, const char *file, int line, const char *func,
-	const char *fmt, ...)
+tsd_log(const char *file, int line, const char *func, const char *fmt, ...)
 {
 	char timestr[32];
 	time_t now;
-	va_list ap, ap_syslog;
+	va_list ap;
 	int serrno;
 
 	serrno = errno;
 	time(&now);
 	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
 	    gmtime(&now));
-	
-	/*Allocate a temp string buffer to avoid overflow*/
-	char *buffer;
-	
+	fprintf(stderr, "%s [%d] %s:%d %s() ",
+	    timestr, (int)getpid(), file, line, func);
 	va_start(ap, fmt);
-	/*Previous idea*/
-	//buffer=(char*)calloc(512,sizeof(char));	
-	//vsprintf(buffer,fmt, ap);
-	vasprintf(&buffer,fmt, ap);
+	vfprintf(stderr, fmt, ap);
 	va_end(ap);
-	
-	fprintf(stderr, "%s [%d] %s:%d %s() %s \n",
-	    timestr, (int)getpid(), file, line, func, buffer);
-	syslog (priority, "%s:%d %s() %s", file, line, func, buffer);
-	
-	free(buffer);
-	
-	/*Previous idea*/
-	//va_start(ap, fmt);
-	//va_copy(ap_syslog,ap);//copy the variable argument list
-	//vfprintf(stderr, fmt, ap);//to the local log
-	//vsyslog (LOG_NOTICE, fmt, ap_syslog);//to the syslog
-	//va_end(ap);
-	//fprintf(stderr, "\n");
+	fprintf(stderr, "\n");
 	errno = serrno;
-	
-	
-
-	
-
 }
 
 int
 tsd_log_init(void)
 {
-	/*Azab*/
-	setlogmask (LOG_UPTO (LOG_NOTICE));
-	openlog ("tsdfx", LOG_CONS | LOG_PID | LOG_NDELAY/* | LOG_PERROR*/, LOG_LOCAL1);
-	
-	
+
 	setvbuf(stderr, NULL, _IOLBF, 0);
 	return (0);
 }
