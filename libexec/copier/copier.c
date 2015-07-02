@@ -536,23 +536,23 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-copier [-nv] src dst\n");
+	fprintf(stderr, "usage: tsdfx-copier [-nv] [-l logname] src dst\n");
 	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
+	const char *logfile;
 	int opt;
 
-	tsd_log_init();
-	if (getuid() == 0 || geteuid() == 0)
-		WARNING("running as root");
-
-	while ((opt = getopt(argc, argv, "fhnv")) != -1)
+	while ((opt = getopt(argc, argv, "fhl:nv")) != -1)
 		switch (opt) {
 		case 'f':
 			++tsdfx_force;
+			break;
+		case 'l':
+			logfile = optarg;
 			break;
 		case 'n':
 			++tsdfx_dryrun;
@@ -569,6 +569,11 @@ main(int argc, char *argv[])
 
 	if (argc != 2)
 		usage();
+
+	tsd_log_init("tsdfx-copier", logfile);
+
+	if (getuid() == 0 || geteuid() == 0)
+		WARNING("running as root");
 
 	if (tsdfx_copier(argv[0], argv[1]) != 0)
 		exit(1);

@@ -2,7 +2,7 @@
 
 x() {
 	echo "$@"
-	"$@" > "${logfile}" 2>&1
+	"$@"
 }
 
 fail() {
@@ -51,7 +51,7 @@ dd bs=1k count=${randomsize} \
 md5start=$(cd ${srcdir}; md5sum ${randomsize}krandom)
 
 echo "logging to ${logfile}"
-x "${tsdfx}" -m "${mapfile}" -1v
+x "${tsdfx}" -l "${logfile}" -m "${mapfile}" -1v
 
 for good in test1 test2 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then

@@ -52,7 +52,8 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx [-1nv] [-C copier] [-S scanner] -m mapfile\n");
+	fprintf(stderr, "usage: tsdfx [-1nv] "
+	    "[-l logname] [-C copier] [-S scanner] -m mapfile\n");
 	exit(1);
 }
 
@@ -60,14 +61,14 @@ static void
 showversion(void)
 {
 	fprintf(stderr, "%s\n\nReport bugs to %s and visit\n%s to learn more.\n\n",
-		PACKAGE_STRING, PACKAGE_BUGREPORT, PACKAGE_URL);
+	    PACKAGE_STRING, PACKAGE_BUGREPORT, PACKAGE_URL);
 	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
-	const char *mapfile;
+	const char *logfile, *mapfile;
 	int opt;
 
 #if HAVE_SETPROCTITLE_INIT
@@ -78,13 +79,16 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "1C:hm:nS:vV")) != -1)
+	while ((opt = getopt(argc, argv, "1C:hl:m:nS:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
 			break;
 		case 'C':
 			tsdfx_copier = optarg;
+			break;
+		case 'l':
+			logfile = optarg;
 			break;
 		case 'm':
 			mapfile = optarg;
@@ -124,7 +128,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (tsd_log_init() != 0)
+	if (tsd_log_init("tsdfx", logfile) != 0)
 		exit(1);
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);

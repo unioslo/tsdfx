@@ -262,7 +262,7 @@ static void
 tsdfx_scan_child(void *ud)
 {
 	struct tsdfx_scan_task_data *std = ud;
-	const char *argv[4];
+	const char *argv[6];
 	int argc;
 
 	/* check credentials */
@@ -282,6 +282,8 @@ tsdfx_scan_child(void *ud)
 	argv[argc++] = tsdfx_scanner;
 	if (tsdfx_verbose)
 		argv[argc++] = "-v";
+	argv[argc++] = "-l";
+	argv[argc++] = tsd_log_getname();
 	argv[argc++] = ".";
 	argv[argc] = NULL;
 	/* XXX should clean the environment */

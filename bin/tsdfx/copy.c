@@ -251,7 +251,7 @@ static void
 tsdfx_copy_child(void *ud)
 {
 	struct tsdfx_copy_task_data *ctd = ud;
-	const char *argv[6];
+	const char *argv[8];
 	int argc;
 
 	/* check credentials */
@@ -269,6 +269,8 @@ tsdfx_copy_child(void *ud)
 		argv[argc++] = "-n";
 	if (tsdfx_verbose)
 		argv[argc++] = "-v";
+	argv[argc++] = "-l";
+	argv[argc++] = tsd_log_getname();
 	argv[argc++] = ctd->src;
 	argv[argc++] = ctd->dst;
 	argv[argc] = NULL;

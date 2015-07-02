@@ -30,36 +30,42 @@
 #ifndef TSD_LOG_H_INCLUDED
 #define TSD_LOG_H_INCLUDED
 
-void tsd_log(const char *, int, const char *, const char *, ...);
-int tsd_log_init(void);
+typedef enum {
+	TSD_LOG_LEVEL_VERBOSE,
+	TSD_LOG_LEVEL_NOTICE,
+	TSD_LOG_LEVEL_WARNING,
+	TSD_LOG_LEVEL_ERROR,
+} tsd_log_level_t;
+
+void tsd_log(tsd_log_level_t, const char *, int, const char *, const char *, ...);
+int tsd_log_init(const char *, const char *);
+const char *tsd_log_getname(void);
 
 extern int tsd_log_quiet;
 extern int tsd_log_verbose;
 
 #define VERBOSE(...) \
 	do {								\
-		if (tsd_log_verbose)					\
-			tsd_log(__FILE__, __LINE__, __func__,		\
-			    __VA_ARGS__);				\
+		tsd_log(TSD_LOG_LEVEL_VERBOSE, __FILE__,		\
+			__LINE__, __func__, __VA_ARGS__);		\
 	} while (0)
 
 #define NOTICE(...) \
 	do {								\
-		if (!tsd_log_quiet)					\
-			tsd_log(__FILE__, __LINE__, __func__,		\
-			    __VA_ARGS__);				\
+		tsd_log(TSD_LOG_LEVEL_NOTICE, __FILE__, __LINE__,	\
+			__func__,__VA_ARGS__);				\
 	} while (0)
 
 #define WARNING(...) \
 	do {								\
-		tsd_log(__FILE__, __LINE__, __func__,			\
-		    __VA_ARGS__);					\
+		tsd_log(TSD_LOG_LEVEL_WARNING, __FILE__, __LINE__,	\
+			__func__, __VA_ARGS__);				\
 	} while (0)
 
 #define ERROR(...) \
 	do {								\
-		tsd_log(__FILE__, __LINE__, __func__,			\
-		    __VA_ARGS__);					\
+		tsd_log(TSD_LOG_LEVEL_ERROR, __FILE__, __LINE__,	\
+			__func__, __VA_ARGS__);				\
 	} while (0)
 
 #endif
