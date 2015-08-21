@@ -28,6 +28,9 @@ tsdfx="@abs_top_builddir@/bin/tsdfx/tsdfx"
 copier="@abs_top_builddir@/libexec/copier/tsdfx-copier"
 scanner="@abs_top_builddir@/libexec/scanner/tsdfx-scanner"
 
+# How large should the file with random data be
+randomsize=5000 # kiB
+
 export TSDFX_COPIER="${copier}"
 export TSDFX_SCANNER="${scanner}"
 
@@ -40,6 +43,12 @@ EOF
 echo test1 > "${srcdir}/test1"
 echo 'test(2)' > "${srcdir}/test (2).txt"
 echo test2 > "${srcdir}/test2"
+
+dd bs=1k count=${randomsize} \
+    if=/dev/urandom \
+    of="${srcdir}/${randomsize}krandom" > /dev/null 2>&1
+
+md5start=$(cd ${srcdir}; md5sum ${randomsize}krandom)
 
 echo "logging to ${logfile}"
 x "${tsdfx}" -m "${mapfile}" -1v
@@ -57,5 +66,10 @@ for bad in "test (2).txt" ; do
 		fail "should not exist: ${bad}"
 	fi
 done
+
+md5end=$(cd ${dstdir}; md5sum ${randomsize}krandom)
+if [ "$md5start" != "$md5end" ]; then
+    fail "${randomsize}krandom file changed from source to destination"
+fi
 
 rm -rf "${tstdir}"
