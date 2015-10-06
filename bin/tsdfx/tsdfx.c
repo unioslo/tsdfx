@@ -57,6 +57,7 @@ signal_handler(int sig)
 		++sighup;
 		break;
 	default:
+		WARNING("received unexpected signal %d", sig);
 		/* nothing */;
 	}
 }
