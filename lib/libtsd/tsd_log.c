@@ -34,6 +34,9 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -42,6 +45,44 @@
 int tsd_log_quiet = 0;
 int tsd_log_verbose = 0;
 
+static char *tsd_log_filename;
+static FILE *tsd_log_file;
+const char *tsd_log_ident;
+
+static int
+tsd_log_level2syslog(tsd_log_level_t level)
+{
+
+	switch (level) {
+	case TSD_LOG_LEVEL_VERBOSE:
+		return (LOG_INFO);
+	case TSD_LOG_LEVEL_NOTICE:
+		return (LOG_NOTICE);
+	case TSD_LOG_LEVEL_WARNING:
+		return (LOG_WARNING);
+	case TSD_LOG_LEVEL_ERROR:
+		return (LOG_ERR);
+	}
+	return (0);
+}
+
+static const char *
+tsd_log_level2str(tsd_log_level_t level)
+{
+
+	switch (level) {
+	case TSD_LOG_LEVEL_VERBOSE:
+		return ("verbose");
+	case TSD_LOG_LEVEL_NOTICE:
+		return ("notice");
+	case TSD_LOG_LEVEL_WARNING:
+		return ("warning");
+	case TSD_LOG_LEVEL_ERROR:
+		return ("error");
+	}
+	return ("unknown");
+}
+
 /*
  * Log a message.
  *
@@ -49,30 +90,68 @@ int tsd_log_verbose = 0;
  * errno to spare the caller from having to do it.
  */
 void
-tsd_log(const char *file, int line, const char *func, const char *fmt, ...)
+tsd_log(tsd_log_level_t level, const char *file, int line, const char *func,
+    const char *fmt, ...)
 {
+	char *msgbuffer;
 	char timestr[32];
 	time_t now;
 	va_list ap;
 	int serrno;
 
+	msgbuffer = NULL;
+
+	if ((TSD_LOG_LEVEL_VERBOSE == level && !tsd_log_verbose) ||
+	    (TSD_LOG_LEVEL_NOTICE == level && !tsd_log_quiet))
+		return;
+
+	/* make sure logging do not change errno */
 	serrno = errno;
-	time(&now);
-	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
-	    gmtime(&now));
-	fprintf(stderr, "%s [%d] %s:%d %s() ",
-	    timestr, (int)getpid(), file, line, func);
+
 	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
+	vasprintf(&msgbuffer, fmt, ap);
 	va_end(ap);
-	fprintf(stderr, "\n");
+
+	if (tsd_log_file == NULL) {
+		syslog(tsd_log_level2syslog(level), "%s:%d %s() %s",
+		    file, line, func, msgbuffer);
+	} else {
+		now = time(NULL);
+		strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
+		    gmtime(&now));
+		fprintf(tsd_log_file, "%s [%d] %s: %s:%d %s() %s\n", timestr,
+		    (int)getpid(), tsd_log_level2str(level),
+		    file, line, func, msgbuffer);
+	}
+
+	free(msgbuffer);
+	msgbuffer = NULL;
 	errno = serrno;
 }
 
 int
-tsd_log_init(void)
+tsd_log_init(const char *ident, const char *logfile)
 {
 
-	setvbuf(stderr, NULL, _IOLBF, 0);
+	tsd_log_ident = ident ? ident : "tsd";
+	if (logfile == NULL)
+		logfile = ":stderr";
+	if ((tsd_log_filename = strdup(logfile)) == NULL)
+		return (-1);
+	if (strcmp(logfile, ":stderr") == 0)
+		tsd_log_file = stderr;
+	else if (strcmp(logfile, ":syslog") == 0)
+		openlog(ident, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL3);
+	else if ((tsd_log_file = fopen(logfile, "a")) == NULL)
+		return (-1);
+	if (tsd_log_file != NULL)
+		setvbuf(tsd_log_file, NULL, _IOLBF, 0);
 	return (0);
+}
+
+const char *
+tsd_log_getname(void)
+{
+
+	return (tsd_log_filename);
 }

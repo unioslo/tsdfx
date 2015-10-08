@@ -300,21 +300,21 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-scanner [-v] path\n");
+	fprintf(stderr, "usage: tsdfx-scanner [-v] [-l logname] path\n");
 	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
+	const char *logfile;
 	int opt;
 
-	tsd_log_init();
-	if (getuid() == 0 || geteuid() == 0)
-		WARNING("running as root");
-
-	while ((opt = getopt(argc, argv, "hv")) != -1)
+	while ((opt = getopt(argc, argv, "hl:v")) != -1)
 		switch (opt) {
+		case 'l':
+			logfile = optarg;
+			break;
 		case 'v':
 			++tsd_log_verbose;
 			break;
@@ -327,6 +327,11 @@ main(int argc, char *argv[])
 
 	if (argc != 1)
 		usage();
+
+	tsd_log_init("tsdfx-scanner", logfile);
+
+	if (getuid() == 0 || geteuid() == 0)
+		WARNING("running as root");
 
 	if (tsdfx_scanner(argv[0]) != 0)
 		exit(1);
