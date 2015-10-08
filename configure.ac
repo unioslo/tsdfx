@@ -66,4 +66,5 @@ AC_CONFIG_FILES([
     t/Makefile
 ])
 AC_CONFIG_FILES([t/test.sh], [chmod +x t/test.sh])
+AC_CONFIG_FILES([t/pidfile.sh], [chmod +x t/pidfile.sh])
 AC_OUTPUT

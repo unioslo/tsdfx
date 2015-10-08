@@ -42,7 +42,13 @@
 #include <bsd/unistd.h>
 #endif
 
+#include "tsd/pidfile.h"
+
 #include "tsdfx.h"
+
+#ifndef PIDFILENAME
+#define PIDFILENAME "/var/run/tsdfx.pid"
+#endif
 
 #if HAVE_SETPROCTITLE_INIT
 extern char **environ;
@@ -53,7 +59,7 @@ usage(void)
 {
 
 	fprintf(stderr, "usage: tsdfx [-1nv] "
-	    "[-l logname] [-C copier] [-S scanner] -m mapfile\n");
+	    "[-l logname] [-C copier] [-p pidfile] [-S scanner] -m mapfile\n");
 	exit(1);
 }
 
@@ -68,8 +74,10 @@ showversion(void)
 int
 main(int argc, char *argv[])
 {
-	const char *logfile, *mapfile;
+	const char *logfile, *mapfile, *pidfilename;
+	struct tsd_pidfh *pidfh;
 	int opt;
+	pid_t pid;
 
 #if HAVE_SETPROCTITLE_INIT
 	setproctitle_init(argc, argv, environ);
@@ -79,7 +87,8 @@ main(int argc, char *argv[])
 #endif
 
 	mapfile = NULL;
-	while ((opt = getopt(argc, argv, "1C:hl:m:nS:vV")) != -1)
+	pidfilename = PIDFILENAME;
+	while ((opt = getopt(argc, argv, "1C:hl:m:np:S:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
@@ -95,6 +104,9 @@ main(int argc, char *argv[])
 			break;
 		case 'n':
 			++tsdfx_dryrun;
+			break;
+		case 'p':
+			pidfilename = optarg;
 			break;
 		case 'S':
 			tsdfx_scanner = optarg;
@@ -132,7 +144,35 @@ main(int argc, char *argv[])
 		exit(1);
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);
-	// add daemonization etc.
+
+	if (!tsdfx_oneshot) {
+		NOTICE("creating pid file %s", pidfilename);
+		pid = 0;
+		pidfh = tsd_pidfile_open(pidfilename, 0644, &pid);
+		if (pidfh == NULL) {
+			ERROR("unable to create pid file: %s", strerror(errno));
+			exit(1);
+		}
+
+		if (0 > daemon(0, 0)) {
+			ERROR("unable to daemonize: %s", strerror(errno));
+			exit(1);
+		}
+		if (tsd_pidfile_write(pidfh) != 0) {
+			ERROR("unable to write pid to file: %s", strerror(errno));
+			exit(1);
+		}
+	} else {
+		NOTICE("not creating pid file");
+	}
+
 	tsdfx_run(mapfile);
+
+	if (!tsdfx_oneshot) {
+		NOTICE("removing pid file %s", pidfilename);
+		tsd_pidfile_remove(pidfh);
+		pidfh = NULL;
+	}
+
 	exit(0);
 }

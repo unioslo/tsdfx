@@ -44,6 +44,7 @@
 int tsdfx_oneshot = 0;
 
 static volatile sig_atomic_t sighup;
+static volatile sig_atomic_t timetodie;
 
 /*
  * Signal handler
@@ -55,6 +56,9 @@ signal_handler(int sig)
 	switch (sig) {
 	case SIGHUP:
 		++sighup;
+		break;
+	case SIGTERM:
+		++timetodie;
 		break;
 	default:
 		/* nothing */;
@@ -83,7 +87,9 @@ tsdfx_run(const char *mapfile)
 	int scan_running, copy_running;
 
 	signal(SIGHUP, signal_handler);
-	for (;;) {
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	for (;!timetodie;) {
 		/* check for sighup */
 		if (sighup) {
 			sighup = 0;
@@ -106,5 +112,6 @@ tsdfx_run(const char *mapfile)
 
 		usleep(100 * 1000);
 	}
+	signal(SIGTERM, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
 }
