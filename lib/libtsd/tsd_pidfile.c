@@ -10,7 +10,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHORS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -22,68 +22,69 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ * Derived from:
+ * $FreeBSD: head/lib/libutil/pidfile.c 184091 2008-10-20 17:41:08Z des $
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+#include "config.h"
 
 #include <sys/param.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 
+#include <errno.h>
+#include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
-#include <time.h>
-#include <err.h>
-#include <errno.h>
-#include <libutil.h>
+#include <unistd.h>
 
-struct pidfh {
+#include "flopen.h"
+#include "vas.h"
+#include "vpf.h"
+
+struct vpf_fh {
 	int	pf_fd;
 	char	pf_path[MAXPATHLEN + 1];
 	dev_t	pf_dev;
 	ino_t	pf_ino;
 };
 
-static int _pidfile_remove(struct pidfh *pfh, int freeit);
+static int _VPF_Remove(struct vpf_fh *pfh, int freeit);
 
 static int
-pidfile_verify(const struct pidfh *pfh)
+vpf_verify(const struct vpf_fh *pfh)
 {
 	struct stat sb;
 
 	if (pfh == NULL || pfh->pf_fd == -1)
-		return (EDOOFUS);
+		return (EINVAL);
 	/*
 	 * Check remembered descriptor.
 	 */
 	if (fstat(pfh->pf_fd, &sb) == -1)
 		return (errno);
 	if (sb.st_dev != pfh->pf_dev || sb.st_ino != pfh->pf_ino)
-		return (EDOOFUS);
+		return (EINVAL);
 	return (0);
 }
 
 static int
-pidfile_read(const char *path, pid_t *pidptr)
+vpf_read(const char *path, pid_t *pidptr)
 {
 	char buf[16], *endptr;
 	int error, fd, i;
 
-	fd = open(path, O_RDONLY | O_CLOEXEC);
+	fd = open(path, O_RDONLY);
 	if (fd == -1)
 		return (errno);
 
 	i = read(fd, buf, sizeof(buf) - 1);
 	error = errno;	/* Remember errno in case close() wants to change it. */
-	close(fd);
+	(void)close(fd);
 	if (i == -1)
 		return (error);
-	else if (i == 0)
-		return (EAGAIN);
 	buf[i] = '\0';
 
 	*pidptr = strtol(buf, &endptr, 10);
@@ -93,24 +94,28 @@ pidfile_read(const char *path, pid_t *pidptr)
 	return (0);
 }
 
-struct pidfh *
-pidfile_open(const char *path, mode_t mode, pid_t *pidptr)
+struct vpf_fh *
+VPF_Open(const char *path, mode_t mode, pid_t *pidptr)
 {
-	struct pidfh *pfh;
+	struct vpf_fh *pfh;
 	struct stat sb;
-	int error, fd, len, count;
-	struct timespec rqtp;
+	int error, fd, len;
 
 	pfh = malloc(sizeof(*pfh));
 	if (pfh == NULL)
 		return (NULL);
 
+#if 0
 	if (path == NULL)
 		len = snprintf(pfh->pf_path, sizeof(pfh->pf_path),
 		    "/var/run/%s.pid", getprogname());
 	else
+#endif
+	{
+		assert(path != NULL);
 		len = snprintf(pfh->pf_path, sizeof(pfh->pf_path),
 		    "%s", path);
+	}
 	if (len >= (int)sizeof(pfh->pf_path)) {
 		free(pfh);
 		errno = ENAMETOOLONG;
@@ -120,44 +125,28 @@ pidfile_open(const char *path, mode_t mode, pid_t *pidptr)
 	/*
 	 * Open the PID file and obtain exclusive lock.
 	 * We truncate PID file here only to remove old PID immediatelly,
-	 * PID file will be truncated again in pidfile_write(), so
-	 * pidfile_write() can be called multiple times.
+	 * PID file will be truncated again in VPF_Write(), so
+	 * VPF_Write() can be called multiple times.
 	 */
 	fd = flopen(pfh->pf_path,
-	    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NONBLOCK, mode);
+	    O_WRONLY | O_CREAT | O_TRUNC | O_NONBLOCK, mode);
 	if (fd == -1) {
-		if (errno == EWOULDBLOCK) {
-			if (pidptr == NULL) {
+		if (errno == EWOULDBLOCK && pidptr != NULL) {
+			errno = vpf_read(pfh->pf_path, pidptr);
+			if (errno == 0)
 				errno = EEXIST;
-			} else {
-				count = 20;
-				rqtp.tv_sec = 0;
-				rqtp.tv_nsec = 5000000;
-				for (;;) {
-					errno = pidfile_read(pfh->pf_path,
-					    pidptr);
-					if (errno != EAGAIN || --count == 0)
-						break;
-					nanosleep(&rqtp, 0);
-				}
-				if (errno == EAGAIN)
-					*pidptr = -1;
-				if (errno == 0 || errno == EAGAIN)
-					errno = EEXIST;
-			}
 		}
 		free(pfh);
 		return (NULL);
 	}
-
 	/*
-	 * Remember file information, so in pidfile_write() we are sure we write
+	 * Remember file information, so in VPF_Write() we are sure we write
 	 * to the proper descriptor.
 	 */
 	if (fstat(fd, &sb) == -1) {
 		error = errno;
-		unlink(pfh->pf_path);
-		close(fd);
+		(void)unlink(pfh->pf_path);
+		(void)close(fd);
 		free(pfh);
 		errno = error;
 		return (NULL);
@@ -171,7 +160,7 @@ pidfile_open(const char *path, mode_t mode, pid_t *pidptr)
 }
 
 int
-pidfile_write(struct pidfh *pfh)
+VPF_Write(struct vpf_fh *pfh)
 {
 	char pidstr[16];
 	int error, fd;
@@ -180,7 +169,7 @@ pidfile_write(struct pidfh *pfh)
 	 * Check remembered descriptor, so we don't overwrite some other
 	 * file if pidfile was closed and descriptor reused.
 	 */
-	errno = pidfile_verify(pfh);
+	errno = vpf_verify(pfh);
 	if (errno != 0) {
 		/*
 		 * Don't close descriptor, because we are not sure if it's ours.
@@ -190,19 +179,20 @@ pidfile_write(struct pidfh *pfh)
 	fd = pfh->pf_fd;
 
 	/*
-	 * Truncate PID file, so multiple calls of pidfile_write() are allowed.
+	 * Truncate PID file, so multiple calls of VPF_Write() are allowed.
 	 */
 	if (ftruncate(fd, 0) == -1) {
 		error = errno;
-		_pidfile_remove(pfh, 0);
+		(void)_VPF_Remove(pfh, 0);
 		errno = error;
 		return (-1);
 	}
 
-	snprintf(pidstr, sizeof(pidstr), "%u", getpid());
+	error = snprintf(pidstr, sizeof(pidstr), "%ju", (uintmax_t)getpid());
+	assert(error < sizeof pidstr);
 	if (pwrite(fd, pidstr, strlen(pidstr), 0) != (ssize_t)strlen(pidstr)) {
 		error = errno;
-		_pidfile_remove(pfh, 0);
+		(void)_VPF_Remove(pfh, 0);
 		errno = error;
 		return (-1);
 	}
@@ -211,11 +201,11 @@ pidfile_write(struct pidfh *pfh)
 }
 
 int
-pidfile_close(struct pidfh *pfh)
+VPF_Close(struct vpf_fh *pfh)
 {
 	int error;
 
-	error = pidfile_verify(pfh);
+	error = vpf_verify(pfh);
 	if (error != 0) {
 		errno = error;
 		return (-1);
@@ -232,11 +222,11 @@ pidfile_close(struct pidfh *pfh)
 }
 
 static int
-_pidfile_remove(struct pidfh *pfh, int freeit)
+_VPF_Remove(struct vpf_fh *pfh, int freeit)
 {
 	int error;
 
-	error = pidfile_verify(pfh);
+	error = vpf_verify(pfh);
 	if (error != 0) {
 		errno = error;
 		return (-1);
@@ -260,19 +250,8 @@ _pidfile_remove(struct pidfh *pfh, int freeit)
 }
 
 int
-pidfile_remove(struct pidfh *pfh)
+VPF_Remove(struct vpf_fh *pfh)
 {
 
-	return (_pidfile_remove(pfh, 1));
-}
-
-int
-pidfile_fileno(const struct pidfh *pfh)
-{
-
-	if (pfh == NULL || pfh->pf_fd == -1) {
-		errno = EDOOFUS;
-		return (-1);
-	}
-	return (pfh->pf_fd);
+	return (_VPF_Remove(pfh, 1));
 }
