@@ -28,10 +28,10 @@
  * $FreeBSD: src/lib/libutil/libutil.h,v 1.44 2007/05/10 15:01:42 des Exp $
  */
 
-#ifndef FLOPEN_H_INCLUDED
-#define FLOPEN_H_INCLUDED
+#ifndef TSD_FLOPEN_H_INCLUDED
+#define TSD_FLOPEN_H_INCLUDED
 
-int flopen(const char *, int, ...);
-int fltest(int fd, pid_t *pid);
+int tsd_flopen(const char *, int, ...);
+int tsd_fltest(int fd, pid_t *pid);
 
-#endif
+#endif /* !TSD_FLOPEN_H_INCLUDED */

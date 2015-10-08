@@ -27,14 +27,14 @@
  * $FreeBSD: src/lib/libutil/libutil.h,v 1.41 2005/08/24 17:21:38 pjd Exp $
  */
 
-#ifndef VPF_H_INCLUDED
-#define VPF_H_INCLUDED
+#ifndef TSD_PIDFILE_H_INCLUDED
+#define TSD_PIDFILE_H_INCLUDED
 
-struct vpf_fh;
+struct tsd_pidfh;
 
-struct vpf_fh *VPF_Open(const char *path, mode_t mode, pid_t *pidptr);
-int VPF_Write(struct vpf_fh *pfh);
-int VPF_Close(struct vpf_fh *pfh);
-int VPF_Remove(struct vpf_fh *pfh);
+struct tsd_pidfh *tsd_pidfile_open(const char *path, mode_t mode, pid_t *pidptr);
+int tsd_pidfile_write(struct tsd_pidfh *pfh);
+int tsd_pidfile_close(struct tsd_pidfh *pfh);
+int tsd_pidfile_remove(struct tsd_pidfh *pfh);
 
-#endif
+#endif /* !TSD_PIDFILE_H_INCLUDED */

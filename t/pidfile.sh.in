@@ -1,0 +1,62 @@
+#!/bin/sh
+
+x() {
+	echo "$@"
+	"$@" > "${logfile}" 2>&1
+}
+
+fail() {
+	(
+		echo "FAIL $@"
+		echo "last lines in log file:"
+		echo
+		tail -30 $logfile
+		echo
+	) >&2
+	exit 1
+}
+
+set -e
+
+tstdir="@abs_builddir@/t$$"
+logfile="${tstdir}/log"
+mapfile="${tstdir}/map"
+srcdir="${tstdir}/src"
+dstdir="${tstdir}/dst"
+pidfile="${tstdir}/tsdfx.pid"
+tsdfx="@abs_top_builddir@/bin/tsdfx/tsdfx"
+copier="@abs_top_builddir@/libexec/copier/tsdfx-copier"
+scanner="@abs_top_builddir@/libexec/scanner/tsdfx-scanner"
+
+export TSDFX_COPIER="${copier}"
+export TSDFX_SCANNER="${scanner}"
+
+mkdir "${tstdir}" "${srcdir}" "${dstdir}"
+
+cat >"${mapfile}" <<EOF
+EOF
+
+
+echo "logging to ${logfile}"
+x "${tsdfx}" -p "${pidfile}" -m "${mapfile}" -v &
+pid=$!
+
+sleep 2
+
+if [ -f "${pidfile}" ]; then
+    echo "success: found pid file ${pidfile}"
+else
+    fail "missing pid file ${pidfile}"
+fi
+
+kill "$(cat ${pidfile})"
+
+sleep 2
+
+if [ ! -f "${pidfile}" ]; then
+    echo "success: pid file ${pidfile} no longer present"
+else
+    fail "found obsolete pid file ${pidfile}"
+fi
+
+rm -rf "${tstdir}"

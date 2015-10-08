@@ -25,9 +25,12 @@
  * SUCH DAMAGE.
  * Derived from:
  * $FreeBSD: head/lib/libutil/flopen.c 184094 2008-10-20 18:11:30Z des $
+ * Derived from varnish 4.0.3-1, lib/libvarnish/flopen.c
  */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 #include <sys/stat.h>
 
@@ -37,10 +40,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "flopen.h"
+#include "tsd/flopen.h"
 
 int
-flopen(const char *path, int flags, ...)
+tsd_flopen(const char *path, int flags, ...)
 {
 	int fd, operation, serrno, trunc;
 	struct flock lock;
@@ -115,7 +118,7 @@ flopen(const char *path, int flags, ...)
  * Returns -1 on error (and errno)
  */
 int
-fltest(int fd, pid_t *pid)
+tsd_fltest(int fd, pid_t *pid)
 {
 	struct flock lock;
 
