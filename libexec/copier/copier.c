@@ -87,7 +87,7 @@ static int copyfile_comparestat(struct copyfile *, struct copyfile *);
 static void copyfile_copy(struct copyfile *, struct copyfile *);
 static void copyfile_copystat(struct copyfile *, struct copyfile *);
 static int copyfile_write(struct copyfile *);
-static int copyfile_advance(struct copyfile *);
+static void copyfile_advance(struct copyfile *);
 static int copyfile_finish(struct copyfile *);
 static void copyfile_close(struct copyfile *);
 
@@ -318,16 +318,13 @@ copyfile_write(struct copyfile *cf)
 	return (0);
 }
 
-/* update the offset and running digest */
-static int
+/* update the running digest */
+static void
 copyfile_advance(struct copyfile *cf)
 {
 
 	sha1_update(&cf->sha_ctx, cf->buf, cf->buflen);
 	cf->offset += cf->buflen;
-	if (fstat(cf->fd, &cf->st) != 0)
-		return (-1);
-	return (0);
 }
 
 
@@ -515,9 +512,8 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 			if (copyfile_write(dst) != 0)
 				goto fail;
 		}
-		if (copyfile_advance(src) != 0 ||
-		    copyfile_advance(dst) != 0)
-			goto fail;
+		copyfile_advance(src);
+		copyfile_advance(dst);
 	}
 	/* not reached */
 fail:
