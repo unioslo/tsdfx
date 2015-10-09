@@ -1,0 +1,125 @@
+#!/bin/sh
+# chkconfig: 2345 20 80
+# processname: tsdfx
+# config: /etc/default/tsdfx
+### BEGIN INIT INFO
+# Provides:          tsdfx
+# Required-Start:    $syslog $time $remote_fs
+# Required-Stop:     $syslog $time $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: TSD file exchange copier process
+# Description:       Program to move files from one set of source
+#  		     directories to another set of destination
+#  		     directories, while tracking changes and logging
+#  		     any transfer.
+### END INIT INFO
+
+DESC="TSD file exchange"
+SCRIPTNAME=/etc/init.d/tsdfx
+DAEMON=/usr/sbin/tsdfx
+PIDFILE=/var/run/tsdfx.pid
+NAME=$(basename $DAEMON)
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+export PATH
+
+test -x $DAEMON || exit 0
+
+if [ -f /lib/lsb/init-functions ] ; then
+    . /lib/lsb/init-functions
+
+    # RHEL lack some log_* functions, make our own based on the
+    # versions in Debian.
+    if [ -f /etc/init.d/functions ] ; then
+	. /etc/init.d/functions
+	log_daemon_msg() {
+	    if [ -z "${2:-}" ]; then
+		echo -n "$1:" || true
+		return
+	    fi
+	    echo -n "$1: $2" || true
+	}
+	log_end_msg() {
+	    local retval
+	    retval=$1
+	    if [ $1 -eq 0 ]; then
+		echo "." || true
+	    elif [ $1 -eq 255 ]; then
+		/bin/echo -e " (warning)." || true
+	    else
+		/bin/echo -e " failed!" || true
+	    fi
+	    return $retval
+	}
+	status_of_proc () {
+	    local pidfile daemon name status OPTIND
+
+	    pidfile=
+	    OPTIND=1
+	    while getopts p: opt ; do
+		case "$opt" in
+		    p)  pidfile="$OPTARG";;
+		esac
+	    done
+	    shift $(($OPTIND - 1))
+
+	    if [ -n "$pidfile" ]; then
+		pidfile="-p $pidfile"
+	    fi
+	    daemon="$1"
+	    name="$2"
+
+	    status="0"
+	    pidofproc $pidfile $daemon >/dev/null || status="$?"
+	    if [ "$status" = 0 ]; then
+		log_success_msg "$name is running"
+		return 0
+	    elif [ "$status" = 4 ]; then
+		log_failure_msg "could not access PID file for $name"
+		return $status
+	    else
+		log_failure_msg "$name is not running"
+		return $status
+	    fi
+	}
+    fi
+fi
+
+DAEMON_ARGS=
+
+# Using /etc/default as it is used on both deb and rpm based
+# distributions, while /etc/sysconfig only seem to be used on rpm
+# based distributions.
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+case "$1" in
+    start)
+	log_daemon_msg "Starting $DESC" "$NAME"
+	start_daemon -p $PIDFILE $DAEMON $DAEMON_ARGS
+	log_end_msg $?
+	;;
+    stop)
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	killproc -p $PIDFILE $DAEMON
+	log_end_msg $?
+	;;
+    reload)
+	log_daemon_msg "Reloading $DESC" "$NAME"
+	killproc -p $PIDFILE $DAEMON -HUP
+	log_end_msg $?
+	;;
+    force-reload|restart)
+	$0 stop
+	$0 start
+	;;
+    status)
+	status_of_proc -p $PIDFILE $DAEMON "$NAME" && exit 0 || exit $?
+	;;
+    *)
+	echo "Usage: /etc/init.d/tsdfx {start|stop|restart|force-reload|status}"
+	exit 1
+	;;
+esac
+
+exit 0

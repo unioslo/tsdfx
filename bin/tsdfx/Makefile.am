@@ -13,3 +13,4 @@ noinst_HEADERS += tsdfx_copy.h
 noinst_HEADERS += tsdfx_map.h
 noinst_HEADERS += tsdfx_scan.h
 dist_man8_MANS = tsdfx.8
+EXTRA_DIST = initd-script
