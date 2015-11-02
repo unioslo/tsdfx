@@ -101,9 +101,20 @@ tsd_log(tsd_log_level_t level, const char *file, int line, const char *func,
 
 	msgbuffer = NULL;
 
-	if ((TSD_LOG_LEVEL_VERBOSE == level && !tsd_log_verbose) ||
-	    (TSD_LOG_LEVEL_NOTICE == level && !tsd_log_quiet))
-		return;
+	/*
+	 * Log levels:
+	 *
+	 *   quiet: print only warnings and errors
+	 *   normal: print notices, warnings and errors
+	 *   verbose: print everything
+	 *
+	 * If both the verbose and quiet flags are set, verbose wins.
+	 */
+	if (!tsd_log_verbose) {
+		if (level <= TSD_LOG_LEVEL_VERBOSE ||
+		    (level <= TSD_LOG_LEVEL_NOTICE && tsd_log_quiet))
+			return;
+	}
 
 	/* make sure logging do not change errno */
 	serrno = errno;
