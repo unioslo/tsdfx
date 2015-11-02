@@ -382,7 +382,7 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 
 	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
 		hex[i * 2] = "0123456789abcdef"[dst->digest[i] >> 4];
-		hex[i * 2 + 1] = "0123456789abcdef"[dst->digest[i] & 7];
+		hex[i * 2 + 1] = "0123456789abcdef"[dst->digest[i] & 0xf];
 	}
 	hex[i * 2] = 0;
 	NOTICE("copied %s to %s len %zu bytes sha1 %s in %lu.%03lu s",
