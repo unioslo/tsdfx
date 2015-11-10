@@ -437,12 +437,23 @@ tsd_task_poll(struct tsd_task *t)
 		/* still running */
 		return (0);
 	} else if (ret == t->pid) {
-		if (!WIFEXITED(t->status))
-			nextstate = TASK_DEAD;
-		else if (WEXITSTATUS(t->status) != 0)
-			nextstate = TASK_FAILED;
-		else
+		if (WIFEXITED(t->status) && WEXITSTATUS(t->status) == 0) {
+			VERBOSE("%s [%lu] succeeded", t->name,
+			    (unsigned long)t->pid);
 			nextstate = TASK_STOPPED;
+		} else if (WIFEXITED(t->status)) {
+			NOTICE("%s [%lu] failed with exit code %d", t->name,
+			    (unsigned long)t->pid, WEXITSTATUS(t->status));
+			nextstate = TASK_FAILED;
+		} else if (WIFSIGNALED(t->status)) {
+			WARNING("%s [%lu] caught signal %d", t->name,
+			    (unsigned long)t->pid, WTERMSIG(t->status));
+			nextstate = TASK_DEAD;
+		} else {
+			ERROR("%s [%lu] terminated with unknown status %d",
+			    t->name, (unsigned long)t->pid, t->status);
+			nextstate = TASK_DEAD;
+		}
 		/* fall through */
 	} else {
 		/* wtf? */
