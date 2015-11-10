@@ -187,7 +187,7 @@ copyfile_refresh(struct copyfile *cf)
 {
 	struct stat st;
 
-	if (stat(cf->name, &st) != 0) {
+	if (lstat(cf->name, &st) != 0) {
 		ERROR("%s: %s", cf->name, strerror(errno));
 		return (-1);
 	}
@@ -238,8 +238,11 @@ copyfile_read(struct copyfile *cf)
 		ERROR("%s: read(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
-	if ((cf->buflen = (size_t)rlen) < cf->bufsize)
+	cf->buflen = (size_t)rlen;
+#if 0
+	if (cf->buflen < cf->bufsize)
 		memset(cf->buf + cf->buflen, 0, cf->bufsize - cf->buflen);
+#endif
 	return (0);
 }
 
@@ -284,9 +287,13 @@ copyfile_copy(struct copyfile *src, struct copyfile *dst)
 {
 
 	assert(dst->bufsize >= src->bufsize);
+	assert(src->offset == dst->offset);
 	memcpy(dst->buf, src->buf, src->buflen);
-	if ((dst->buflen = src->buflen) < dst->bufsize)
+	dst->buflen = src->buflen;
+#if 0
+	if (dst->buflen < dst->bufsize)
 		memset(dst->buf + dst->buflen, 0, dst->bufsize - dst->buflen);
+#endif
 }
 
 /* copy mode + times from one state structure to another */
@@ -325,8 +332,8 @@ copyfile_advance(struct copyfile *cf)
 
 	sha1_update(&cf->sha_ctx, cf->buf, cf->buflen);
 	cf->offset += cf->buflen;
+	cf->buflen = 0;
 }
-
 
 /* truncate at current offset, finalize digest */
 static int
