@@ -40,6 +40,9 @@ cat >"${mapfile}" <<EOF
 test: ${srcdir} => ${dstdir}
 EOF
 
+# Try to trigger scanner problem discovered 2015-10-28
+echo "badfile, should be ignored" > "${srcdir}/$(printf "\002")"
+
 echo test1 > "${srcdir}/test1"
 echo 'test(2)' > "${srcdir}/test (2).txt"
 echo test2 > "${srcdir}/test2"
