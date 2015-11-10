@@ -508,6 +508,11 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		retries = 0;
 		if (copyfile_compare(src, dst) != 0) {
 			/* input and output differ */
+			if (src->offset != dst->offset) {
+				ERROR("src and dst offset do not match when copying %s to %s",
+				      srcfn, dstfn);
+				goto fail;
+			}
 			copyfile_copy(src, dst);
 			if (copyfile_write(dst) != 0)
 				goto fail;
