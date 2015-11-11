@@ -34,12 +34,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <tsd/assert.h>
 #include <tsd/hash.h>
 #include <tsd/log.h>
 #include <tsd/strutil.h>
@@ -97,11 +97,11 @@ tsd_tset_insert(struct tsd_tset *ts, struct tsd_task *t)
 		errno = EBUSY;
 		return (-1);
 	}
-	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
-	assert(t->snext == NULL);
-	assert(t->set == NULL);
+	ASSERT(t->h < sizeof ts->tasks / sizeof *ts->tasks);
+	ASSERT(t->snext == NULL);
+	ASSERT(t->set == NULL);
 	for (tpp = &ts->tasks[t->h]; *tpp != NULL; tpp = &(*tpp)->snext) {
-		assert((*tpp)->h ==  t->h);
+		ASSERT((*tpp)->h ==  t->h);
 		if (strcmp((*tpp)->name, t->name) == 0) {
 			errno = EEXIST;
 			return (-1);
@@ -127,10 +127,10 @@ tsd_tset_remove(struct tsd_tset *ts, struct tsd_task *t)
 		errno = ENOENT;
 		return (-1);
 	}
-	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
-	assert(t->set == ts);
+	ASSERT(t->h < sizeof ts->tasks / sizeof *ts->tasks);
+	ASSERT(t->set == ts);
 	for (tpp = &ts->tasks[t->h]; *tpp != NULL; tpp = &(*tpp)->snext) {
-		assert((*tpp)->h ==  t->h);
+		ASSERT((*tpp)->h ==  t->h);
 		if (*tpp == t) {
 			*tpp = t->snext;
 			t->snext = NULL;
@@ -155,9 +155,9 @@ tsd_tset_find(const struct tsd_tset *ts, const char *name)
 	unsigned int h;
 
 	h = tsd_strhash(name);
-	assert(h < sizeof ts->tasks / sizeof *ts->tasks);
+	ASSERT(h < sizeof ts->tasks / sizeof *ts->tasks);
 	for (tp = ts->tasks[h]; tp != NULL; tp = tp->snext) {
-		assert(tp->h ==  h);
+		ASSERT(tp->h ==  h);
 		if (strcmp(tp->name, name) == 0)
 			return (tp);
 	}
@@ -175,7 +175,7 @@ tsd_tset_first(const struct tsd_tset *ts)
 
 	for (h = 0; h < sizeof ts->tasks / sizeof *ts->tasks; ++h) {
 		if (ts->tasks[h] != NULL) {
-			assert(ts->tasks[h]->h == h);
+			ASSERT(ts->tasks[h]->h == h);
 			return (ts->tasks[h]);
 		}
 	}
@@ -192,16 +192,16 @@ tsd_tset_next(const struct tsd_tset *ts, const struct tsd_task *t)
 
 	if (t == NULL)
 		return (tsd_tset_first(ts));
-	assert(t->h < sizeof ts->tasks / sizeof *ts->tasks);
-	assert(t->set == ts);
+	ASSERT(t->h < sizeof ts->tasks / sizeof *ts->tasks);
+	ASSERT(t->set == ts);
 	if (t->snext != NULL) {
-		assert(t->snext->set == ts);
+		ASSERT(t->snext->set == ts);
 		return (t->snext);
 	}
 	for (h = t->h + 1; h < sizeof ts->tasks / sizeof *ts->tasks; ++h) {
 		if (ts->tasks[h] != NULL) {
-			assert(ts->tasks[h]->h == h);
-			assert(ts->tasks[h]->set == ts);
+			ASSERT(ts->tasks[h]->h == h);
+			ASSERT(ts->tasks[h]->set == ts);
 			return (ts->tasks[h]);
 		}
 	}

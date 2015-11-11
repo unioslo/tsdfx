@@ -34,11 +34,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <tsd/assert.h>
 #include <tsd/log.h>
 #include <tsd/strutil.h>
 #include <tsd/task.h>
@@ -84,13 +84,13 @@ tsd_tqueue_insert(struct tsd_tqueue *tq, struct tsd_task *t)
 		errno = EBUSY;
 		return (-1);
 	}
-	assert(t->qprev == NULL && t->qnext == NULL);
+	ASSERT(t->qprev == NULL && t->qnext == NULL);
 	if (tq->first == NULL) {
-		assert(tq->last == NULL);
+		ASSERT(tq->last == NULL);
 		tq->first = tq->last = t;
 	} else {
-		assert(tq->last != NULL);
-		assert(tq->last->qnext == NULL);
+		ASSERT(tq->last != NULL);
+		ASSERT(tq->last->qnext == NULL);
 		t->qprev = tq->last;
 		tq->last->qnext = t;
 		tq->last = t;

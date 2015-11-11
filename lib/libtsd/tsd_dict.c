@@ -31,13 +31,13 @@
 # include "config.h"
 #endif
 
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <tsd/assert.h>
 #include <tsd/dict.h>
 #include <tsd/hash.h>
 
@@ -96,9 +96,9 @@ tsd_dict_insert(struct tsd_dict *d, const char *key, void *value)
 	unsigned int h;
 
 	h = tsd_strhash(key);
-	assert(h < sizeof d->entries / sizeof *d->entries);
+	ASSERT(h < sizeof d->entries / sizeof *d->entries);
 	for (epp = &d->entries[h]; *epp != NULL; epp = &(*epp)->next) {
-		assert((*epp)->h == h);
+		ASSERT((*epp)->h == h);
 		if (strcmp((*epp)->key, key) == 0) {
 			errno = EEXIST;
 			return (-1);
@@ -123,9 +123,9 @@ tsd_dict_remove(struct tsd_dict *d, const char *key)
 	unsigned int h;
 
 	h = tsd_strhash(key);
-	assert(h < sizeof d->entries / sizeof *d->entries);
+	ASSERT(h < sizeof d->entries / sizeof *d->entries);
 	for (epp = &d->entries[h]; *epp != NULL; epp = &(*epp)->next) {
-		assert((*epp)->h == h);
+		ASSERT((*epp)->h == h);
 		if (strcmp((*epp)->key, key) == 0) {
 			ep = *epp;
 			*epp = ep->next;
@@ -148,7 +148,7 @@ tsd_dict_first(const struct tsd_dict *d)
 
 	for (h = 0; h < sizeof d->entries / sizeof *d->entries; ++h) {
 		if (d->entries[h] != NULL) {
-			assert(d->entries[h]->h == h);
+			ASSERT(d->entries[h]->h == h);
 			return (d->entries[h]);
 		}
 	}
@@ -165,12 +165,12 @@ tsd_dict_next(const struct tsd_dict *d, const struct tsd_dict_ent *e)
 
 	if (e == NULL)
 		return (tsd_dict_first(d));
-	assert(e->h < sizeof d->entries / sizeof *d->entries);
+	ASSERT(e->h < sizeof d->entries / sizeof *d->entries);
 	if (e->next != NULL)
 		return (e->next);
 	for (h = e->h + 1; h < sizeof d->entries / sizeof *d->entries; ++h) {
 		if (d->entries[h] != NULL) {
-			assert(d->entries[h]->h == h);
+			ASSERT(d->entries[h]->h == h);
 			return (d->entries[h]);
 		}
 	}
