@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2015 Universitetet i Oslo
+ * Copyright (c) 2015 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,45 +27,24 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSD_LOG_H_INCLUDED
-#define TSD_LOG_H_INCLUDED
+#ifndef TSD_ASSERT_H_INCLUDED
+#define TSD_ASSERT_H_INCLUDED
 
-typedef enum {
-	TSD_LOG_LEVEL_VERBOSE,
-	TSD_LOG_LEVEL_NOTICE,
-	TSD_LOG_LEVEL_WARNING,
-	TSD_LOG_LEVEL_ERROR,
-} tsd_log_level_t;
+#include <signal.h>
+#include <tsd/log.h>
 
-void tsd_log(tsd_log_level_t, const char *, int, const char *, const char *, ...);
-int tsd_log_init(const char *, const char *);
-const char *tsd_log_getname(void);
-
-extern int tsd_log_quiet;
-extern int tsd_log_verbose;
-
-#define VERBOSE(...)							\
-	do {								\
-		tsd_log(TSD_LOG_LEVEL_VERBOSE, __FILE__,		\
-			__LINE__, __func__, __VA_ARGS__);		\
-	} while (0)
-
-#define NOTICE(...)							\
-	do {								\
-		tsd_log(TSD_LOG_LEVEL_NOTICE, __FILE__, __LINE__,	\
-			__func__,__VA_ARGS__);				\
-	} while (0)
-
-#define WARNING(...)							\
-	do {								\
-		tsd_log(TSD_LOG_LEVEL_WARNING, __FILE__, __LINE__,	\
-			__func__, __VA_ARGS__);				\
-	} while (0)
-
-#define ERROR(...)							\
-	do {								\
+#define ASSERT(expr)							\
+	while (!(expr)) {						\
 		tsd_log(TSD_LOG_LEVEL_ERROR, __FILE__, __LINE__,	\
-			__func__, __VA_ARGS__);				\
-	} while (0)
+		    __func__, "assertion failed: %s", #expr);		\
+		raise(SIGABRT);						\
+	}
+
+#define ASSERTF(expr, ...)						\
+	while (!(expr)) {						\
+		tsd_log(TSD_LOG_LEVEL_ERROR, __FILE__, __LINE__,	\
+		    __func__, __VA_ARGS__);				\
+		raise(SIGABRT);						\
+	}
 
 #endif

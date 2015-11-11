@@ -111,7 +111,7 @@ tsd_task_destroy(struct tsd_task *t)
 		tsd_tqueue_remove(t->queue, t);
 	if (t->set != NULL)
 		tsd_tset_remove(t->set, t);
-	/* assert(t->state != TASK_STOPPING); */
+	/* ASSERT(t->state != TASK_STOPPING); */
 	memset(t, 0, sizeof *t);
 	free(t);
 }

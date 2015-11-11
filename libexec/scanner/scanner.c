@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014 Universitetet i Oslo
+ * Copyright (c) 2014-2015 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -44,6 +43,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <tsd/assert.h>
 #include <tsd/ctype.h>
 #include <tsd/log.h>
 #include <tsd/sbuf.h>
@@ -112,7 +112,7 @@ tsdfx_scan_next(void)
 
 	if ((se = scan_todo) != NULL) {
 		if ((scan_todo = se->next) == NULL) {
-			assert(scan_tail == se);
+			ASSERT(scan_tail == se);
 			scan_tail = NULL;
 		}
 	}
@@ -291,7 +291,7 @@ tsdfx_scanner(const char *path)
 			return (-1);
 		}
 	}
-	assert(scan_todo == NULL && scan_tail == NULL);
+	ASSERT(scan_todo == NULL && scan_tail == NULL);
 	tsdfx_scan_cleanup();
 	return (0);
 }

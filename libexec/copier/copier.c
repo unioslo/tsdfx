@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014 Universitetet i Oslo
+ * Copyright (c) 2014-2015 Universitetet i Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,6 @@
 #undef HAVE_STATVFS
 #endif
 
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -51,6 +50,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <tsd/assert.h>
 #include <tsd/log.h>
 #include <tsd/sha1.h>
 #include <tsd/strutil.h>
@@ -286,8 +286,12 @@ static void
 copyfile_copy(struct copyfile *src, struct copyfile *dst)
 {
 
-	assert(dst->bufsize >= src->bufsize);
-	assert(src->offset == dst->offset);
+	ASSERTF(dst->bufsize >= src->bufsize,
+	    "buffer size mismatch (dst %zd < src %zd)",
+	    dst->bufsize, src->bufsize);
+	ASSERTF(dst->offset == src->offset,
+	    "offset mismatch (dst %zu != src %zu)",
+	    (ssize_t)dst->offset, (ssize_t)src->offset);
 	memcpy(dst->buf, src->buf, src->buflen);
 	dst->buflen = src->buflen;
 #if 0
