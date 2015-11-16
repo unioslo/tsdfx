@@ -75,6 +75,7 @@ struct copyfile {
 	sha1_ctx	 sha_ctx;
 	uint8_t		 digest[SHA1_DIGEST_LEN];
 	off_t		 offset;
+	off_t		 nexthole;
 	size_t		 bufsize, buflen;
 	char		 buf[];
 };
@@ -104,6 +105,7 @@ copyfile_open(const char *fn, int mode, int perm)
 		goto fail;
 	sha1_init(&cf->sha_ctx);
 	cf->bufsize = BLOCKSIZE;
+	cf->nexthole = (off_t)-1;
 
 	/* copy name, check for trailing /, then strip it off */
 	if ((len = strlcpy(cf->name, fn, sizeof cf->name)) >= sizeof cf->name) {
@@ -230,10 +232,46 @@ copyfile_isdir(const struct copyfile *cf)
 static int
 copyfile_read(struct copyfile *cf)
 {
+	off_t currpos;
 	ssize_t rlen;
 
 	if (copyfile_isdir(cf))
 		return (-1);
+
+	/* If nexthole is unknown or seem to be in the next block to
+	   read, update its value to check if this is still the
+	   case. */
+	if (cf->offset != cf->st.st_size &&
+	    (cf->nexthole == (off_t)-1 ||
+	     (cf->nexthole - cf->offset) < (off_t)cf->bufsize)) {
+		if ((currpos = lseek(cf->fd, 0, SEEK_CUR)) == (off_t)-1) {
+			ERROR("%s: read() unable to locate current position %s",
+			      cf->name, strerror(errno));
+			return (-1);
+		}
+		if ((cf->nexthole = lseek(cf->fd, cf->offset,
+					  SEEK_HOLE)) == (off_t)-1) {
+			ERROR("%s: read() unable to check for fd %d holes from %d of %d: %s",
+			      cf->name, cf->fd, cf->offset, cf->st.st_size, strerror(errno));
+			return (-1);
+		}
+		if ((lseek(cf->fd, currpos, SEEK_SET)) != currpos) {
+			ERROR("%s: read() unable to set seek position: %s",
+			      cf->name, strerror(errno));
+			return (-1);
+		}
+	}
+
+	/* if the next hole is in the next block, and not at the end
+	   of the file, refuse to read this block. */
+	if (cf->nexthole != (off_t)-1 &&
+	    cf->nexthole != cf->st.st_size &&
+	    (cf->nexthole -  cf->offset) < (off_t)cf->bufsize) {
+		ERROR("%s: read() found a hole in the file at position %d",
+		      cf->name, cf->nexthole);
+		return (-1);
+	}
+
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
 		ERROR("%s: read(): %s", cf->name, strerror(errno));
 		return (-1);
