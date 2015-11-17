@@ -263,13 +263,15 @@ copyfile_read(struct copyfile *cf)
 	}
 
 	/* if the next hole is in the next block, and not at the end
-	   of the file, refuse to read this block. */
+	   of the file, refuse to read this block and pretend the file
+	   end is reached, to retry in a bit. */
 	if (cf->nexthole != (off_t)-1 &&
 	    cf->nexthole != cf->st.st_size &&
 	    (cf->nexthole -  cf->offset) < (off_t)cf->bufsize) {
-		ERROR("%s: read() found a hole in the file at position %d",
+		ASSERT(0 == cf->buflen);
+		WARNING("%s: read() found a hole in the file at position %d",
 		      cf->name, cf->nexthole);
-		return (-1);
+		return (0);
 	}
 
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
