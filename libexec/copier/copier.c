@@ -248,14 +248,17 @@ copyfile_read(struct copyfile *cf)
 	    "file position does not match stored offset: %zu != %zu",
 	    (size_t)lseek(cf->fd, 0, SEEK_CUR), (size_t)cf->offset);
 
+	if (cf->st.st_size == 0)
+		return (0);
+
 #ifdef SEEK_HOLE
 	/*
 	 * If nexthole is unknown or seem to be in the next block to read,
 	 * update its value to check if this is still the case.
 	 */
-	if (cf->offset > 0 && (cf->nexthole == (off_t)-1 ||
-	    cf->nexthole < (off_t)(cf->offset + cf->bufsize))) {
-		cf->nexthole = lseek(cf->fd, cf->offset - 1, SEEK_HOLE);
+	if (cf->nexthole == (off_t)-1 ||
+	    cf->nexthole < (off_t)(cf->offset + cf->bufsize)) {
+		cf->nexthole = lseek(cf->fd, cf->offset, SEEK_HOLE);
 		if (cf->nexthole == (off_t)-1) {
 			ERROR("%s: lseek(SEEK_HOLE) failed at %zu: %s",
 			    cf->name, (size_t)cf->offset, strerror(errno));
