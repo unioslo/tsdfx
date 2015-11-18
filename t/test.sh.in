@@ -96,7 +96,7 @@ hmd5dst="$(cd "${dstdir}"; md5sum "${randomsize}krandom-with-holes")"
 if [ "$hmd5src" != "$hmd5dst" ] ; then
     fail "File with hole changed MD5sum during transmission: $hmd5src != $hmd5dst"
 else
-    success "All ok with holy file"
+    echo "All ok with holy file"
 fi
 
 md5end=$(cd ${dstdir}; md5sum ${randomsize}krandom)
