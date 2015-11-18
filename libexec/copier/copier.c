@@ -75,7 +75,9 @@ struct copyfile {
 	sha1_ctx	 sha_ctx;
 	uint8_t		 digest[SHA1_DIGEST_LEN];
 	off_t		 offset;
+#ifdef SEEK_HOLE
 	off_t		 nexthole;
+#endif
 	size_t		 bufsize, buflen;
 	char		 buf[];
 };
@@ -105,7 +107,9 @@ copyfile_open(const char *fn, int mode, int perm)
 		goto fail;
 	sha1_init(&cf->sha_ctx);
 	cf->bufsize = BLOCKSIZE;
+#ifdef SEEK_HOLE
 	cf->nexthole = (off_t)-1;
+#endif
 
 	/* copy name, check for trailing /, then strip it off */
 	if ((len = strlcpy(cf->name, fn, sizeof cf->name)) >= sizeof cf->name) {
@@ -244,6 +248,7 @@ copyfile_read(struct copyfile *cf)
 	    "file position does not match stored offset: %zu != %zu",
 	    (size_t)lseek(cf->fd, 0, SEEK_CUR), (size_t)cf->offset);
 
+#ifdef SEEK_HOLE
 	/*
 	 * If nexthole is unknown or seem to be in the next block to read,
 	 * update its value to check if this is still the case.
@@ -281,6 +286,7 @@ copyfile_read(struct copyfile *cf)
 		    cf->name, (size_t)cf->nexthole);
 		return (0);
 	}
+#endif
 
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
 		ERROR("%s: read(): %s", cf->name, strerror(errno));
@@ -550,10 +556,12 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 				usleep(100 * 1000);
 				continue;
 			}
+#ifdef SEEK_HOLE
 			/* did we hit a hole? */
 			if (src->offset < src->st.st_size)
 				WARNING("giving up waiting for hole at %zu to fill",
 				    (size_t)src->nexthole);
+#endif
 			/* end of source file */
 			copyfile_copystat(src, dst);
 			if (copyfile_finish(src) != 0 ||
