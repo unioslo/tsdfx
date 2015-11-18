@@ -232,45 +232,53 @@ copyfile_isdir(const struct copyfile *cf)
 static int
 copyfile_read(struct copyfile *cf)
 {
-	off_t currpos;
 	ssize_t rlen;
 
 	if (copyfile_isdir(cf))
 		return (-1);
 
-	/* If nexthole is unknown or seem to be in the next block to
-	   read, update its value to check if this is still the
-	   case. */
-	if (cf->offset != cf->st.st_size &&
-	    (cf->nexthole == (off_t)-1 ||
-	     (cf->nexthole - cf->offset) < (off_t)cf->bufsize)) {
-		if ((currpos = lseek(cf->fd, 0, SEEK_CUR)) == (off_t)-1) {
-			ERROR("%s: read() unable to locate current position %s",
-			      cf->name, strerror(errno));
+	ASSERTF(cf->offset <= cf->st.st_size,
+	    "trying to read past end of file: %zu > %zu",
+	    (size_t)cf->offset, (size_t)cf->st.st_size);
+	ASSERTF(lseek(cf->fd, 0, SEEK_CUR) == cf->offset,
+	    "file position does not match stored offset: %zu != %zu",
+	    (size_t)lseek(cf->fd, 0, SEEK_CUR), (size_t)cf->offset);
+
+	/*
+	 * If nexthole is unknown or seem to be in the next block to read,
+	 * update its value to check if this is still the case.
+	 */
+	if (cf->offset > 0 && (cf->nexthole == (off_t)-1 ||
+	    cf->nexthole < (off_t)(cf->offset + cf->bufsize))) {
+		cf->nexthole = lseek(cf->fd, cf->offset - 1, SEEK_HOLE);
+		if (cf->nexthole == (off_t)-1) {
+			ERROR("%s: lseek(SEEK_HOLE) failed at %zu: %s",
+			    cf->name, (size_t)cf->offset, strerror(errno));
+			return (-1);
+		} else if (cf->nexthole < (off_t)cf->st.st_size) {
+			VERBOSE("%s: found hole at %zu", cf->name,
+			    (size_t)cf->nexthole);
+		}
+		if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
+			ERROR("%s: lseek(SEEK_SET) failed at %zu: %s",
+			    cf->name, (size_t)cf->offset, strerror(errno));
 			return (-1);
 		}
-		if ((cf->nexthole = lseek(cf->fd, cf->offset,
-					  SEEK_HOLE)) == (off_t)-1) {
-			ERROR("%s: read() unable to check for fd %d holes from %d of %d: %s",
-			      cf->name, cf->fd, cf->offset, cf->st.st_size, strerror(errno));
-			return (-1);
-		}
-		if ((lseek(cf->fd, currpos, SEEK_SET)) != currpos) {
-			ERROR("%s: read() unable to set seek position: %s",
-			      cf->name, strerror(errno));
-			return (-1);
-		}
+		ASSERTF(cf->nexthole >= cf->offset,
+		    "%s: a hole has opened up behind us: %zu < %zu",
+		    (size_t)cf->nexthole, (size_t)cf->offset);
 	}
 
-	/* if the next hole is in the next block, and not at the end
-	   of the file, refuse to read this block and pretend the file
-	   end is reached, to retry in a bit. */
-	if (cf->nexthole != (off_t)-1 &&
-	    cf->nexthole != cf->st.st_size &&
-	    (cf->nexthole -  cf->offset) < (off_t)cf->bufsize) {
-		ASSERT(0 == cf->buflen);
-		WARNING("%s: read() found a hole in the file at position %d",
-		      cf->name, cf->nexthole);
+	/*
+	 * If the next hole is in the next block, and not at the end of
+	 * the file, refuse to read this block and pretend to have reached
+	 * the end of the file.  The main loop will retry in a bit.
+	 */
+	if (cf->nexthole != (off_t)-1 && cf->nexthole != cf->st.st_size &&
+	    (cf->nexthole - cf->offset) < (off_t)cf->bufsize) {
+		ASSERT(cf->buflen == 0);
+		WARNING("%s: found a hole at position %zu, backing off",
+		    cf->name, (size_t)cf->nexthole);
 		return (0);
 	}
 
@@ -542,6 +550,10 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 				usleep(100 * 1000);
 				continue;
 			}
+			/* did we hit a hole? */
+			if (src->offset < src->st.st_size)
+				WARNING("giving up waiting for hole at %zu to fill",
+				    (size_t)src->nexthole);
 			/* end of source file */
 			copyfile_copystat(src, dst);
 			if (copyfile_finish(src) != 0 ||
