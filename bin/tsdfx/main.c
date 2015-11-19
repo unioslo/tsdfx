@@ -86,7 +86,7 @@ main(int argc, char *argv[])
 	setproctitle("master");
 #endif
 
-	mapfile = NULL;
+	logfile = mapfile = NULL;
 	pidfilename = PIDFILENAME;
 	while ((opt = getopt(argc, argv, "1C:hl:m:np:S:vV")) != -1)
 		switch (opt) {

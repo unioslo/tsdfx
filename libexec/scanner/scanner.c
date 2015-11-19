@@ -310,6 +310,7 @@ main(int argc, char *argv[])
 	const char *logfile;
 	int opt;
 
+	logfile = NULL;
 	while ((opt = getopt(argc, argv, "hl:v")) != -1)
 		switch (opt) {
 		case 'l':
