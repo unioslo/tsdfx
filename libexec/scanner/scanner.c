@@ -242,13 +242,14 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 {
 	DIR *dir;
 	struct dirent *de;
-	int dd, serrno;
+	int dd, ret, serrno;
 
+	ret = 0;
 	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0)
 		return (-1);
 	if ((dir = fdopendir(dd)) == NULL)
 		return (-1);
-	while ((de = readdir(dir)) != NULL) {
+	while (ret == 0 && (de = readdir(dir)) != NULL) {
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
 			continue;
@@ -259,11 +260,12 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			continue;
 		}
 		if (tsdfx_process_dirent(path, dd, de) != 0)
-			break;
+			ret = -1;
 	}
 	serrno = errno;
 	closedir(dir);
-	return ((errno = serrno) ? -1 : 0);
+	errno = serrno;
+	return (ret);
 }
 
 /*
