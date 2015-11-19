@@ -264,17 +264,17 @@ copyfile_read(struct copyfile *cf)
 			    cf->name, (size_t)cf->offset, strerror(errno));
 			return (-1);
 		} else if (cf->nexthole < (off_t)cf->st.st_size) {
-			VERBOSE("%s: found hole at %zu", cf->name,
-			    (size_t)cf->nexthole);
+			VERBOSE("%s: found hole at %zu",
+			    cf->name, (size_t)cf->nexthole);
 		}
 		if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
 			ERROR("%s: lseek(SEEK_SET) failed at %zu: %s",
 			    cf->name, (size_t)cf->offset, strerror(errno));
 			return (-1);
 		}
-		ASSERTF(cf->nexthole >= cf->offset,
+		ASSERTF(cf->nexthole == (off_t)-1 || cf->nexthole >= cf->offset,
 		    "%s: a hole has opened up behind us: %zu < %zu",
-		    (size_t)cf->nexthole, (size_t)cf->offset);
+		    cf->name, (size_t)cf->nexthole, (size_t)cf->offset);
 	}
 
 	/*
