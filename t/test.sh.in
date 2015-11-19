@@ -1,5 +1,9 @@
 #!/bin/sh
 
+md5sum() {
+	openssl md5 -r "$@"
+}
+
 x() {
 	echo "$@"
 	"$@"
