@@ -236,6 +236,7 @@ copyfile_isdir(const struct copyfile *cf)
 static int
 copyfile_read(struct copyfile *cf)
 {
+	size_t maxlen;
 	ssize_t rlen;
 
 	if (copyfile_isdir(cf))
@@ -248,7 +249,7 @@ copyfile_read(struct copyfile *cf)
 	    "file position does not match stored offset: %zu != %zu",
 	    (size_t)lseek(cf->fd, 0, SEEK_CUR), (size_t)cf->offset);
 
-	if (cf->st.st_size == 0)
+	if (cf->offset == cf->st.st_size)
 		return (0);
 
 #ifdef SEEK_HOLE
@@ -281,17 +282,22 @@ copyfile_read(struct copyfile *cf)
 	 * If the next hole is in the next block, and not at the end of
 	 * the file, refuse to read this block and pretend to have reached
 	 * the end of the file.  The main loop will retry in a bit.
+	 * Otherwise, read as much as we can up until the hole.
 	 */
-	if (cf->nexthole != (off_t)-1 && cf->nexthole != cf->st.st_size &&
+	if (cf->nexthole != cf->st.st_size &&
 	    (cf->nexthole - cf->offset) < (off_t)cf->bufsize) {
 		ASSERT(cf->buflen == 0);
 		WARNING("%s: found a hole at position %zu, backing off",
 		    cf->name, (size_t)cf->nexthole);
 		return (0);
 	}
+	maxlen = cf->nexthole - cf->offset;
+	if (maxlen > cf->bufsize)
+		maxlen = cf->bufsize;
+#else
+	maxlen = cf->bufsize;
 #endif
-
-	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
+	if ((rlen = read(cf->fd, cf->buf, maxlen)) < 0) {
 		ERROR("%s: read(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
