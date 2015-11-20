@@ -20,13 +20,15 @@ fail() {
 	exit 1
 }
 
+blocksize=$(stat -f%k . || stat -c%o .) 2>/dev/null
+expr "${blocksize}" : '^[1-9][0-9]*$' >/dev/null || \
+    fail "Unable to determine filesystem block size"
+echo "Using ${blocksize}-byte blocks"
+
 # write file with holes, first block 2, then block 4, finally block 1
 # and then block 3.
 write_holy_file() {
     filename="$1"
-    # hopefully ending on a file system block boundary.
-    # Is there a way to figure this out dynamically?
-    blocksize=$((4* 4096)) # bytes
     dd bs=${blocksize} seek=1 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
     dd bs=${blocksize} seek=3 count=1 conv=notrunc \
