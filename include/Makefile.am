@@ -1,4 +1,5 @@
 noinst_HEADERS =
+noinst_HEADERS += tsd/assert.h
 noinst_HEADERS += tsd/bitwise.h
 noinst_HEADERS += tsd/ctype.h
 noinst_HEADERS += tsd/dict.h
