@@ -23,15 +23,15 @@ write_holy_file() {
     # hopefully ending on a file system block boundary.
     # Is there a way to figure this out dynamically?
     blocksize=$((4* 4096)) # bytes
-    dd bs=${blocksize} seek=1 count=1 \
+    dd bs=${blocksize} seek=1 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
-    dd bs=${blocksize} seek=3 count=1 \
-	if=/dev/urandom of="$filename" > /dev/null 2>&1
-    sleep 5
-    dd bs=${blocksize} seek=0 count=1 \
+    dd bs=${blocksize} seek=3 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
     sleep 5
-    dd bs=${blocksize} seek=2 count=1 \
+    dd bs=${blocksize} seek=0 count=1 conv=notrunc \
+	if=/dev/urandom of="$filename" > /dev/null 2>&1
+    sleep 5
+    dd bs=${blocksize} seek=2 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
 }
 
