@@ -38,6 +38,11 @@ AC_CHECK_HEADERS([bsd/stdlib.h bsd/unistd.h])
 AC_SEARCH_LIBS([setproctitle], [bsd])
 AC_CHECK_FUNCS([setproctitle_init setproctitle])
 
+# hole detection
+AC_CHECK_DECLS([SEEK_HOLE])
+AM_CONDITIONAL([WITH_HOLE_DETECTION],
+  [test x"$ac_cv_have_decl_SEEK_HOLE" = x"yes"])
+
 # options
 AC_ARG_ENABLE([debug],
     AC_HELP_STRING([--enable-debug], [turn debugging macros on (default is NO)]),
