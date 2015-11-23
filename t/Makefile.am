@@ -1,3 +1,3 @@
-EXTRA_DIST = test.sh.in pidfile.sh.in
+EXTRA_DIST = test-simplecopy.sh test-file-hole.sh pidfile.sh testsuite-common.sh
 
-TESTS = test.sh pidfile.sh
+TESTS = test-simplecopy.sh test-file-hole.sh pidfile.sh
