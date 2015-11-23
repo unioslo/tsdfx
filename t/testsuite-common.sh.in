@@ -1,0 +1,58 @@
+#!/bin/sh
+
+md5sum() {
+	openssl md5 -r "$@"
+}
+
+x() {
+	echo "$@"
+	"$@"
+}
+
+fail() {
+	(
+		echo "FAIL $@"
+		echo "last lines in log file:"
+		echo
+		tail -30 $logfile
+		echo
+	) >&2
+	exit 1
+}
+
+setup_test() {
+	blocksize=$(stat -f%k . || stat -c%o .) 2>/dev/null
+	expr "${blocksize}" : '^[1-9][0-9]*$' >/dev/null || \
+	    fail "Unable to determine filesystem block size"
+	echo "Using ${blocksize}-byte blocks"
+
+	set -e
+
+	tstdir="@abs_builddir@/t$$"
+	logfile="${tstdir}/log"
+	mapfile="${tstdir}/map"
+	srcdir="${tstdir}/src"
+	dstdir="${tstdir}/dst"
+
+	tsdfx="@abs_top_builddir@/bin/tsdfx/tsdfx"
+	copier="@abs_top_builddir@/libexec/copier/tsdfx-copier"
+	scanner="@abs_top_builddir@/libexec/scanner/tsdfx-scanner"
+
+	export TSDFX_COPIER="${copier}"
+	export TSDFX_SCANNER="${scanner}"
+
+	mkdir "${tstdir}" "${srcdir}" "${dstdir}"
+
+	cat >"${mapfile}" <<EOF
+test: ${srcdir} => ${dstdir}
+EOF
+}
+
+run_daemon() {
+	echo "logging to ${logfile}"
+	x "${tsdfx}" -l "${logfile}" -m "${mapfile}" -1v
+}
+
+cleanup_test() {
+	rm -rf "${tstdir}"
+}
