@@ -19,6 +19,7 @@ write_holy_file() {
 }
 
 setup_test
+set_blocksize
 
 write_holy_file "${srcdir}/${randomsize}krandom-with-holes" &
 
