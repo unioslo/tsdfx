@@ -9,6 +9,10 @@ x() {
 	"$@"
 }
 
+notice() {
+	echo "NOTICE $@" >&2
+}
+
 fail() {
 	(
 		echo "FAIL $@"
@@ -21,11 +25,6 @@ fail() {
 }
 
 setup_test() {
-	blocksize=$(stat -f%k . || stat -c%o .) 2>/dev/null
-	expr "${blocksize}" : '^[1-9][0-9]*$' >/dev/null || \
-	    fail "Unable to determine filesystem block size"
-	echo "Using ${blocksize}-byte blocks"
-
 	set -e
 
 	tstdir="@abs_builddir@/t$$"
@@ -46,6 +45,32 @@ setup_test() {
 	cat >"${mapfile}" <<EOF
 test: ${srcdir} => ${dstdir}
 EOF
+}
+
+set_blocksize() {
+	local bsfile bs
+	if [ -f "$1" ] ; then
+		bsfile="$1"
+	else
+		if [ -z "$1" ] ; then
+			bsfile="${tstdir}/bsfile"
+		elif [ -d "$1" ] ; then
+			bsfile="$1/bsfile"
+		else
+			fail "can't determine block size of $1"
+		fi
+		dd if=/dev/zero of="${bsfile}" bs=1048576 count=1
+	fi
+	blocksize=$(
+		stat -f%k "${bsfile}"  2>/dev/null ||
+		stat -c%o "${bsfile}" 2>/dev/null
+	)
+	if [ "${bsfile}" != "$1" ] ; then
+		rm "${bsfile}"
+	fi
+	expr "${blocksize}" : '^[1-9][0-9]*$' >/dev/null || \
+	    fail "Unable to determine filesystem block size"
+	notice "Using ${blocksize}-byte blocks"
 }
 
 run_daemon() {
