@@ -385,7 +385,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 
 		/* ignore everything except files and directories */
 		if (!S_ISREG(srcst.st_mode) && !S_ISDIR(srcst.st_mode)) {
-			WARNING("%s: neither file nor directory", srcpath);
+			WARNING("%s: ignored, neither file nor directory", srcpath);
 			continue;
 		}
 
