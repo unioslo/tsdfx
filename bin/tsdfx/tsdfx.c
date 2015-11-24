@@ -86,6 +86,8 @@ tsdfx_run(const char *mapfile)
 {
 	int scan_running, copy_running;
 
+	WARNING("tsdfx started");
+
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -114,4 +116,6 @@ tsdfx_run(const char *mapfile)
 	}
 	signal(SIGTERM, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
+
+	WARNING("tsdfx exits");
 }
