@@ -189,6 +189,11 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
+		if (errno == ENOENT) {
+			VERBOSE("%s/%s disappeared",
+			    sbuf_data(parent), de->d_name);
+			return (0);
+		}
 		/* hard error */
 		ERROR("fstat(%s/%s)", sbuf_data(parent), de->d_name);
 		return (-1);
@@ -245,10 +250,21 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 	int dd, ret, serrno;
 
 	ret = 0;
-	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0)
+	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0) {
+		if (errno == ENOENT) {
+			VERBOSE("%s disappeared", sbuf_data(path));
+			return (0);
+		} else if (errno == EACCES || errno == EPERM) {
+			NOTICE("%s inaccessible", sbuf_data(path));
+			return (0);
+		}
+		ERROR("%s: %s", sbuf_data(path), strerror(errno));
 		return (-1);
-	if ((dir = fdopendir(dd)) == NULL)
+	}
+	if ((dir = fdopendir(dd)) == NULL) {
+		ERROR("%s: %s", sbuf_data(path), strerror(errno));
 		return (-1);
+	}
 	while (ret == 0 && (de = readdir(dir)) != NULL) {
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
