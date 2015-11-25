@@ -189,13 +189,18 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-		if (errno == ENOENT) {
-			VERBOSE("%s/%s disappeared",
-			    sbuf_data(parent), de->d_name);
+		if (errno == EACCES || errno == EPERM) {
+			VERBOSE("%s/%s inaccessible", sbuf_data(parent),
+			    de->d_name);
+			return (0);
+		} else if (errno == ENOENT) {
+			VERBOSE("%s/%s disappeared", sbuf_data(parent),
+			    de->d_name);
 			return (0);
 		}
 		/* hard error */
-		ERROR("fstat(%s/%s)", sbuf_data(parent), de->d_name);
+		ERROR("fstat(%s/%s): %s", sbuf_data(parent), de->d_name,
+		    strerror(errno));
 		return (-1);
 	}
 
