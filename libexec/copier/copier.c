@@ -62,7 +62,7 @@ static mode_t mumask;
 
 /* XXX make these configurable */
 /* how much to attempt to copy at a time */
-#define BLOCKSIZE	1024576
+#define BLOCKSIZE	(1024*1024)
 /* how many tenths of a second to wait for more data after EOF */
 #define MAX_RETRIES	100
 
