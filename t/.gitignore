@@ -1,2 +1,4 @@
+*.log
+*.trs
 t[0-9]*
-test.sh
+testsuite-common.sh
