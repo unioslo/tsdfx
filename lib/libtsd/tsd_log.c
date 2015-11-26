@@ -160,6 +160,13 @@ tsd_log_init(const char *ident, const char *logfile)
 	return (0);
 }
 
+int
+tsd_log_exit(void)
+{
+	free(tsd_log_filename);
+	return (0);
+}
+
 const char *
 tsd_log_getname(void)
 {

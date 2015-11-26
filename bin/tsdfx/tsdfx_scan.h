@@ -38,6 +38,7 @@ int tsdfx_scan_reset(struct tsd_task *);
 
 int tsdfx_scan_sched(void);
 int tsdfx_scan_init(void);
+int tsdfx_scan_exit(void);
 
 enum tsd_task_state tsdfx_scan_state(const struct tsd_task *);
 const char *tsdfx_scan_result(const struct tsd_task *);

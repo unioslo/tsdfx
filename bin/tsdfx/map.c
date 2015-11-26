@@ -341,3 +341,16 @@ tsdfx_map_sched(void)
 	}
 	return (map_len);
 }
+
+int
+tsdfx_map_exit(void)
+{
+	int i;
+
+	for (i = 0; i < map_len; ++i) {
+		map_delete(map[i]);
+		map[i] = NULL;
+	}
+	free(map);
+	return (0);
+}

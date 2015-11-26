@@ -561,3 +561,20 @@ tsdfx_scan_init(void)
 		return (-1);
 	return (0);
 }
+
+int tsdfx_scan_exit(void)
+{
+	struct tsd_task *t, *tn;
+
+	t = tsd_tset_first(tsdfx_scan_tasks);
+	while (t != NULL) {
+		/* look ahead so we can safely delete dead tasks */
+		tn = tsd_tset_next(tsdfx_scan_tasks, t);
+		tsdfx_scan_delete(t);
+		t = tn;
+	}
+	tsd_tset_destroy(tsdfx_scan_tasks);
+	tsdfx_scan_tasks = NULL;
+	regfree(&scan_regex);
+	return (0);
+}

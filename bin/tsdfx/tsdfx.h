@@ -35,6 +35,7 @@
 
 int tsdfx_init(const char *);
 void tsdfx_run(const char *);
+int tsdfx_exit(void);
 
 extern int tsdfx_dryrun;
 extern int tsdfx_oneshot;
