@@ -468,7 +468,7 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 
 /* read from both files, compare and write if necessary */
 int
-tsdfx_copier(const char *srcfn, const char *dstfn)
+tsdfx_copier(const char *srcfn, const char *dstfn, long int maxsize)
 {
 #if HAVE_STATVFS
 	struct statvfs st;
@@ -557,6 +557,14 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	/* loop over the input and compare with the destination */
 	retries = 0;
 	for (;;) {
+		/* Stop when small files become large files */
+		if (maxsize != -1 &&
+		    src->st.st_size > maxsize) {
+			WARNING("giving up as source size is > %zu",
+				maxsize);
+			return (0);
+		}
+
 		if (copyfile_refresh(src) != 0)
 			goto fail;
 
@@ -642,7 +650,7 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-copier [-nv] [-l logname] src dst\n");
+	fprintf(stderr, "usage: tsdfx-copier [-nv] [-m maxsize] [-l logname] src dst\n");
 	exit(1);
 }
 
@@ -650,16 +658,21 @@ int
 main(int argc, char *argv[])
 {
 	const char *logfile;
+	long int maxsize;
 	int opt;
 
+	maxsize = -1;
 	logfile = NULL;
-	while ((opt = getopt(argc, argv, "fhl:nv")) != -1)
+	while ((opt = getopt(argc, argv, "fhl:nm:v")) != -1)
 		switch (opt) {
 		case 'f':
 			++tsdfx_force;
 			break;
 		case 'l':
 			logfile = optarg;
+			break;
+		case 'm':
+			maxsize = strtol(optarg, NULL, 10);
 			break;
 		case 'n':
 			++tsdfx_dryrun;
@@ -682,7 +695,7 @@ main(int argc, char *argv[])
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
-	if (tsdfx_copier(argv[0], argv[1]) != 0)
+	if (tsdfx_copier(argv[0], argv[1], maxsize) != 0)
 		exit(1);
 	exit(0);
 }

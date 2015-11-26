@@ -72,16 +72,26 @@ struct tsdfx_copy_task_data {
 	/* what to copy */
 	char src[PATH_MAX];
 	char dst[PATH_MAX];
+	char maxsizestr[8 * sizeof (long int) + 1];
 };
 
 /*
  * Task set and queues
+ * Make sure the -1 entry is last, and the entries are sorted on
+ * size_max.
  */
 static struct tsd_tset *tsdfx_copy_tasks;
-// static struct tsd_tqueue *tsdfx_copy_queue[6];
-
-/* max concurrent tasks per queue */
-unsigned int tsdfx_copy_max_tasks = 8;
+struct tsd_copy_queueinfo {
+	off_t size_max;
+	unsigned int max_tasks;
+};
+static struct tsd_copy_queueinfo queueinfo[] =
+  {
+    {1024*1024, 2},
+    {(off_t)-1, 8},
+  };
+#define QUEUEINFO_LENGTH 2
+static struct tsd_tqueue *tsdfx_copy_queues[QUEUEINFO_LENGTH];
 
 /* full path to copier binary */
 const char *tsdfx_copier;
@@ -94,8 +104,6 @@ static void tsdfx_copy_child(void *);
 static int tsdfx_copy_add(struct tsd_task *);
 static int tsdfx_copy_remove(struct tsd_task *);
 static void tsdfx_copy_delete(struct tsd_task *);
-static int tsdfx_copy_start(struct tsd_task *);
-static int tsdfx_copy_stop(struct tsd_task *);
 
 /*
  * Generate a unique name for a copy task.
@@ -143,8 +151,7 @@ tsdfx_copy_add(struct tsd_task *t)
 	VERBOSE("%s -> %s", ctd->src, ctd->dst);
 	if (tsd_tset_insert(tsdfx_copy_tasks, t) != 0)
 		return (-1);
-	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
-	    tsdfx_copy_tasks->nrunning);
+	VERBOSE("%d jobs, %d running", t->set->ntasks, t->set->nrunning);
 	return (0);
 }
 
@@ -155,12 +162,21 @@ static int
 tsdfx_copy_remove(struct tsd_task *t)
 {
 	struct tsdfx_copy_task_data *ctd = t->ud;
+	struct tsd_tset *tasks;
 
-	VERBOSE("%s -> %s", ctd->src, ctd->dst);
-	if (tsd_tset_remove(tsdfx_copy_tasks, t) != 0)
+	/* FIXME should t->queue be null here or not? */
+	if (t->queue != NULL && tsd_tqueue_remove(t->queue, t) != 0) {
+		ERROR("unable to remove task from queue");
 		return (-1);
-	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
-	    tsdfx_copy_tasks->nrunning);
+	}
+	tasks = t->set;
+	if (tsd_tset_remove(tasks, t) != 0) {
+		ERROR("unable to remove task from set");
+		return (-1);
+	}
+	VERBOSE("%s -> %s (%d jobs, %d running)",
+		ctd->src, ctd->dst,
+		tasks->ntasks, tasks->nrunning);
 	return (0);
 }
 
@@ -168,7 +184,7 @@ tsdfx_copy_remove(struct tsd_task *t)
  * Prepare a copy task.
  */
 struct tsd_task *
-tsdfx_copy_new(const char *src, const char *dst)
+tsdfx_copy_new(const char *src, const char *dst, off_t srcsize)
 {
 	char name[NAME_MAX];
 	struct tsdfx_copy_task_data *ctd = NULL;
@@ -182,8 +198,7 @@ tsdfx_copy_new(const char *src, const char *dst)
 		return (NULL);
 
 	/* check for existing task */
-	tsdfx_copy_name(name, src, dst);
-	if (tsd_tset_find(tsdfx_copy_tasks, name) != NULL) {
+	if (tsdfx_copy_find(src, dst) != NULL) {
 		errno = EEXIST;
 		return (NULL);
 	}
@@ -198,6 +213,7 @@ tsdfx_copy_new(const char *src, const char *dst)
 	}
 
 	/* create task and set credentials */
+	tsdfx_copy_name(name, src, dst);
 	if ((t = tsd_task_create(name, tsdfx_copy_child, ctd)) == NULL)
 		goto fail;
 	if ((pw = getpwuid(st.st_uid)) != NULL) {
@@ -213,6 +229,20 @@ tsdfx_copy_new(const char *src, const char *dst)
 	}
 	if (tsdfx_copy_add(t) != 0)
 		goto fail;
+
+	/* Select small/large queue based on current size */
+	for (int i = 0; i < QUEUEINFO_LENGTH; ++i) {
+		if (queueinfo[i].size_max == -1 ||
+		    srcsize < queueinfo[i].size_max) {
+			WARNING("Assigning %s to copier for files size<%d",
+				src, queueinfo[i].size_max);
+			tsd_tqueue_insert(tsdfx_copy_queues[i], t);
+			snprintf(ctd->maxsizestr, sizeof(ctd->maxsizestr), "%ld",
+				 queueinfo[i].size_max);
+
+		}
+	}
+
 	return (t);
 fail:
 	serrno = errno;
@@ -237,8 +267,9 @@ tsdfx_copy_delete(struct tsd_task *t)
 
 	ctd = t->ud;
 
-	VERBOSE("%s -> %s", ctd->src, ctd->dst);
-	tsdfx_copy_stop(t);
+	VERBOSE("stopping %s -> %s", ctd->src, ctd->dst);
+	if (tsd_task_stop(t) != 0)
+		ERROR("unable to stop task");
 	tsdfx_copy_remove(t);
 	tsd_task_destroy(t);
 	free(ctd);
@@ -271,30 +302,16 @@ tsdfx_copy_child(void *ud)
 		argv[argc++] = "-v";
 	argv[argc++] = "-l";
 	argv[argc++] = tsd_log_getname();
+	if (ctd->maxsizestr[0] != 0) {
+		argv[argc++] = "-m";
+		argv[argc++] = ctd->maxsizestr;
+	}
 	argv[argc++] = ctd->src;
 	argv[argc++] = ctd->dst;
 	argv[argc] = NULL;
 	/* XXX should clean the environment */
 	execv(tsdfx_copier, (char *const *)argv);
 	ERROR("failed to execute copier process");
-}
-
-/*
- * Start a copy task.
- */
-static int
-tsdfx_copy_start(struct tsd_task *t)
-{
-	struct tsdfx_copy_task_data *ctd = t->ud;
-
-	VERBOSE("%s -> %s", ctd->src, ctd->dst);
-	if (t->state == TASK_RUNNING)
-		return (0);
-	if (tsd_task_start(t) != 0)
-		return (-1);
-	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
-	    tsdfx_copy_tasks->nrunning);
-	return (0);
 }
 
 /*
@@ -306,22 +323,7 @@ tsdfx_copy_poll(struct tsd_task *t)
 
 	if (tsd_task_poll(t) != 0)
 		return (-1);
-	VERBOSE("%d jobs, %d running", tsdfx_copy_tasks->ntasks,
-	    tsdfx_copy_tasks->nrunning);
-	return (0);
-}
-
-/*
- * Stop a copy task.
- */
-static int
-tsdfx_copy_stop(struct tsd_task *t)
-{
-	struct tsdfx_copy_task_data *ctd = t->ud;
-
-	VERBOSE("%s -> %s", ctd->src, ctd->dst);
-	if (tsd_task_stop(t) != 0)
-		return (-1);
+	VERBOSE("%d jobs, %d running", t->set->ntasks, t->set->nrunning);
 	return (0);
 }
 
@@ -373,9 +375,10 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 		df[q - p] = '\0';
 
 		/* log and check for duplicate */
-		VERBOSE("%s -> %s", srcpath, dstpath);
 		if (tsdfx_copy_find(srcpath, dstpath) != NULL)
 			continue;
+
+		VERBOSE("%s -> %s", srcpath, dstpath);
 
 		/* source must exist */
 		if (lstat(srcpath, &srcst) != 0) {
@@ -447,7 +450,7 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
 #endif
 
 		/* create task */
-		tsdfx_copy_new(srcpath, dstpath);
+		tsdfx_copy_new(srcpath, dstpath, srcst.st_size);
 	}
 	return (0);
 }
@@ -463,14 +466,16 @@ tsdfx_copy_sched(void)
 	t = tsd_tset_first(tsdfx_copy_tasks);
 	while (t != NULL) {
 		/* look ahead so we can safely delete dead tasks */
-		tn = tsd_tset_next(tsdfx_copy_tasks, t);
+		tn = tsd_tset_next(t->set, t);
 		switch (t->state) {
-		case TASK_IDLE:
-			if (tsdfx_copy_tasks->nrunning < tsdfx_copy_max_tasks &&
-			    tsdfx_copy_start(t) != 0)
-				WARNING("failed to start task: %s",
-				    strerror(errno));
+		case TASK_IDLE: {
+			struct tsdfx_copy_task_data *ctd = t->ud;
+			VERBOSE("%s -> %s (%d jobs, %d running)",
+				ctd->src, ctd->dst,
+				t->queue->ntasks, t->queue->nrunning);
+			tsd_tqueue_sched(t->queue);
 			break;
+		}
 		case TASK_RUNNING:
 			tsdfx_copy_poll(t);
 			break;
@@ -495,6 +500,7 @@ tsdfx_copy_sched(void)
 int
 tsdfx_copy_init(void)
 {
+	int i;
 
 	if (tsdfx_copier == NULL &&
 	    (tsdfx_copier = getenv("TSDFX_COPIER")) == NULL &&
@@ -506,6 +512,20 @@ tsdfx_copy_init(void)
 	}
 	if ((tsdfx_copy_tasks = tsd_tset_create("tsdfx copier")) == NULL)
 		return (-1);
+
+	for (i = 0; i < QUEUEINFO_LENGTH; ++i) {
+		tsdfx_copy_queues[i] = tsd_tqueue_create("tsdfx copier",
+							 queueinfo[i].size_max);
+		if (tsdfx_copy_queues[i] == NULL) {
+			for (int j; j < i; ++j) {
+				tsd_tqueue_destroy(tsdfx_copy_queues[i]);
+				tsdfx_copy_queues[i] = NULL;
+			}
+			tsd_tset_destroy(tsdfx_copy_tasks);
+			tsdfx_copy_tasks = NULL;
+			return (-1);
+		}
+	}
 	return (0);
 }
 
