@@ -57,6 +57,7 @@ signal_handler(int sig)
 	case SIGHUP:
 		++sighup;
 		break;
+	case SIGINT:
 	case SIGTERM:
 		++timetodie;
 		break;
@@ -91,7 +92,7 @@ tsdfx_run(const char *mapfile)
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
-	for (;!timetodie;) {
+	while (!timetodie) {
 		/* check for sighup */
 		if (sighup) {
 			sighup = 0;
@@ -115,6 +116,7 @@ tsdfx_run(const char *mapfile)
 		usleep(100 * 1000);
 	}
 	signal(SIGTERM, SIG_DFL);
+	signal(SIGINT, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
 
 	WARNING("tsdfx exits");
