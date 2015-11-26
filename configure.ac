@@ -1,5 +1,5 @@
 AC_PREREQ([2.64])
-AC_INIT([TSD File eXchange], [1.20151124], [d.e.smorgrav@usit.uio.no],
+AC_INIT([TSD File eXchange], [1.20151126], [d.e.smorgrav@usit.uio.no],
     [tsdfx], [https://www.github.com/unioslo/tsdfx])
 AC_CONFIG_SRCDIR([bin/tsdfx/tsdfx.c])
 AC_CONFIG_MACRO_DIR([m4])
