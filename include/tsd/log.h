@@ -39,6 +39,7 @@ typedef enum {
 
 void tsd_log(tsd_log_level_t, const char *, int, const char *, const char *, ...);
 int tsd_log_init(const char *, const char *);
+int tsd_log_exit(void);
 const char *tsd_log_getname(void);
 
 extern int tsd_log_quiet;

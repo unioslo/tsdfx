@@ -168,6 +168,10 @@ main(int argc, char *argv[])
 
 	tsdfx_run(mapfile);
 
+	tsdfx_exit();
+
+	tsd_log_exit();
+
 	if (!tsdfx_oneshot) {
 		NOTICE("removing pid file %s", pidfilename);
 		tsd_pidfile_remove(pidfh);

@@ -36,6 +36,7 @@ struct tsd_task *tsdfx_copy_new(const char *, const char *);
 
 int tsdfx_copy_sched(void);
 int tsdfx_copy_init(void);
+int tsdfx_copy_exit(void);
 
 int tsdfx_copy_wrap(const char *, const char *, const char *);
 

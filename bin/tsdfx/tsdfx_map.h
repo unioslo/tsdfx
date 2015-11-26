@@ -34,5 +34,6 @@ struct map;
 
 int tsdfx_map_reload(const char *);
 int tsdfx_map_sched(void);
+int tsdfx_map_exit(void);
 
 #endif

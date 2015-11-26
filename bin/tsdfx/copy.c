@@ -508,3 +508,20 @@ tsdfx_copy_init(void)
 		return (-1);
 	return (0);
 }
+
+int
+tsdfx_copy_exit(void)
+{
+	struct tsd_task *t, *tn;
+
+	t = tsd_tset_first(tsdfx_copy_tasks);
+	while (t != NULL) {
+		/* look ahead so we can safely delete dead tasks */
+		tn = tsd_tset_next(tsdfx_copy_tasks, t);
+		tsdfx_copy_delete(t);
+		t = tn;
+	}
+	tsd_tset_destroy(tsdfx_copy_tasks);
+	tsdfx_copy_tasks = NULL;
+	return (0);
+}

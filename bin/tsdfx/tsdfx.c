@@ -81,6 +81,15 @@ tsdfx_init(const char *mapfile)
 	return (0);
 }
 
+int
+tsdfx_exit(void)
+{
+	tsdfx_map_exit();
+	tsdfx_scan_exit();
+	tsdfx_copy_exit();
+	return (0);
+}
+
 void
 tsdfx_run(const char *mapfile)
 {
