@@ -48,6 +48,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <tsd/assert.h>
@@ -556,8 +557,35 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	/* loop over the input and compare with the destination */
 	retries = 0;
 	for (;;) {
-		if (copyfile_refresh(src) != 0 || copyfile_read(src) != 0 ||
-		    copyfile_refresh(dst) != 0 || copyfile_read(dst) != 0)
+		if (copyfile_refresh(src) != 0)
+			goto fail;
+
+		/*
+		 * If the source is less than 2*BLOCKSIZE shorter than
+		 * the destination, wait to see if the situation
+		 * changes and copy the second to last BLOCKSIZE bytes
+		 * when that threshold is met.  Only copy the last
+		 * BLOCKSIZE bytes when source mtime have not changed
+		 * for X seconds.  X is the same as retry time when no
+		 * new bytes are available for read.  This give 10
+		 * seconds at the moment, which must be more than the
+		 * 5 seconds used in the testsuite check
+		 * test-file-hole.sh to make sure the test suite check
+		 * work.
+		 */
+		VERBOSE("sdiff %ld < %ld tdiff %ld < %ld",
+			src->st.st_size - src->offset, 2*BLOCKSIZE,
+			time(NULL) - src->st.st_mtime, MAX_RETRIES / 10);
+		if (src->st.st_size != dst->st.st_size &&
+		    src->st.st_size - src->offset < 2*BLOCKSIZE &&
+		    time(NULL) - src->st.st_mtime < MAX_RETRIES / 10) {
+			VERBOSE("waiting for the file end to move more than %ld from last read block",
+				BLOCKSIZE);
+			sleep(1);
+			continue;
+		}
+
+		if (copyfile_read(src) != 0)
 			goto fail;
 		if (src->buflen == 0) {
 			/* wait a bit to see if it keeps growing */
@@ -586,6 +614,8 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 			return (0);
 		}
 		retries = 0;
+		if (copyfile_refresh(dst) != 0 || copyfile_read(dst) != 0)
+			goto fail;
 		if (copyfile_compare(src, dst) != 0) {
 			/* input and output differ */
 			copyfile_copy(src, dst);
