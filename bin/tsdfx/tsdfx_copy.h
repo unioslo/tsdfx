@@ -32,7 +32,7 @@
 
 struct tsd_task;
 
-struct tsd_task *tsdfx_copy_new(const char *, const char *);
+struct tsd_task *tsdfx_copy_new(const char *, const char *, long int);
 
 int tsdfx_copy_sched(void);
 int tsdfx_copy_init(void);
