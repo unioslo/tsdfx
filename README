@@ -1,5 +1,8 @@
 TSD file exchange
 =================
 
+Used to copy files in and out of a research environment for researches
+working on sensitive data.
+
 The latest version of the source is available from
 https://github.com/unioslo/tsdfx
