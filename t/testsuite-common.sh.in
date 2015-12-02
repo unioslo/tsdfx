@@ -20,6 +20,13 @@ fail() {
 		echo
 		tail -30 $logfile
 		echo
+		echo "source directory:"
+		echo
+		(cd "${tstdir}" && find src) | sort
+		echo
+		echo "dst directory:"
+		echo
+		(cd "${tstdir}" && find dst) | sort
 	) >&2
 	exit 1
 }
