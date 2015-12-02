@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -51,6 +50,7 @@
 #include <bsd/unistd.h>
 #endif
 
+#include <tsd/assert.h>
 #include <tsd/ctype.h>
 #include <tsd/log.h>
 #include <tsd/sha1.h>
@@ -186,6 +186,7 @@ tsdfx_scan_remove(struct tsd_task *t)
 	struct tsdfx_scan_task_data *std = t->ud;
 
 	VERBOSE("%s", std->path);
+	ASSERT(t->set == tsdfx_scan_tasks);
 	if (tsd_tset_remove(tsdfx_scan_tasks, t) != 0)
 		return (-1);
 	VERBOSE("%d jobs, %d running", tsdfx_scan_tasks->ntasks,
@@ -301,9 +302,7 @@ tsdfx_scan_start(struct tsd_task *t)
 	struct tsdfx_scan_task_data *std = t->ud;
 
 	VERBOSE("%s", std->path);
-	if (t->state == TASK_RUNNING)
-		return (0);
-	if (tsd_task_start(t) != 0)
+	if (t->state != TASK_RUNNING && tsd_task_start(t) != 0)
 		return (-1);
 	VERBOSE("%d jobs, %d running", tsdfx_scan_tasks->ntasks,
 	    tsdfx_scan_tasks->nrunning);
@@ -319,8 +318,10 @@ tsdfx_scan_stop(struct tsd_task *t)
 	struct tsdfx_scan_task_data *std = t->ud;
 
 	VERBOSE("%s", std->path);
-	if (tsd_task_stop(t) != 0)
+	if (t->state == TASK_RUNNING && tsd_task_stop(t) != 0)
 		return (-1);
+	VERBOSE("%d jobs, %d running", tsdfx_scan_tasks->ntasks,
+	    tsdfx_scan_tasks->nrunning);
 	return (0);
 }
 
@@ -338,9 +339,10 @@ tsdfx_scan_delete(struct tsd_task *t)
 	std = t->ud;
 
 	VERBOSE("%s", std->path);
-	tsdfx_scan_stop(t);
 	tsdfx_scan_remove(t);
 	tsd_task_destroy(t);
+	VERBOSE("%d jobs, %d running", tsdfx_scan_tasks->ntasks,
+	    tsdfx_scan_tasks->nrunning);
 	free(std->buf);
 	free(std);
 }
