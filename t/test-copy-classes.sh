@@ -7,43 +7,43 @@
 setup_test
 
 limit=$((1024*1024))
+size_max=18446744073709551615
+casefile="${tstdir}/file-class-cases"
 
-echo test1 > "${srcdir}/smallfile"
+cat >>"${casefile}" <<EOF
+small 64
+edge-under $((limit-1))
+edge $((limit))
+edge-over $((limit+1))
+large $((limit*2))
+EOF
 
-dd bs=$limit count=1 \
-    if=/dev/urandom \
-    of="${srcdir}/borderfile" > /dev/null 2>&1
-
-dd bs=$((2 * $limit)) count=1 \
-    if=/dev/urandom \
-    of="${srcdir}/largefile" > /dev/null 2>&1
+while read name size ; do
+	dd bs="${size}" count=1 \
+	    if=/dev/urandom \
+	    of="${srcdir}/${name}" > /dev/null 2>&1
+done < "${casefile}"
 
 run_daemon
 
-for good in smallfile largefile borderfile; do
-	if [ ! -e "${dstdir}/${good}" ] ; then
-		fail "missing: ${dstdir}/${good}"
-	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then
-		fail "incorrect: ${dstdir}/${good}"
+while read name size ; do
+	if [ ! -e "${dstdir}/${name}" ] ; then
+		fail "missing: ${dstdir}/${name}"
+	elif ! cmp -s "${srcdir}/${name}" "${dstdir}/${name}" ; then
+		fail "incorrect: ${dstdir}/${name}"
 	fi
-done
-
-if egrep -q "Assigning .*/smallfile to copier for files size<$limit" ${logfile}; then
-    notice "Correctly assigned smallfile to small file copier."
-else
-    fail "Did not find copier assignment for smallfile in the log."
-fi
-
-if egrep -q 'Assigning .*/borderfile to copier for files size<-1' ${logfile}; then
-    notice "Correctly assigned borderfile to large file copier"
-else
-    fail "Did not find copier assignment for borderfile in the log."
-fi
-
-if egrep -q 'Assigning .*/largefile to copier for files size<-1' ${logfile}; then
-    notice "Correctly assigned largefile to large file copier"
-else
-    fail "Did not find copier assignment for largefile in the log."
-fi
+	if [ "${size}" -le "${limit}" ] ; then
+		class="${limit}"
+	else
+		class="${size_max}"
+	fi
+	if egrep -q "Assigning .*/${name} .* <= ${class}" "${logfile}" ; then
+		notice "${name} was assigned to the correct copier"
+	elif egrep -q "Assigning .*/${name} .* <= [0-9]+" "${logfile}" ; then
+		fail "${name} was assigned to the wrong copier"
+	else
+		fail "unable to find copier assignment for ${name}"
+	fi
+done < "${casefile}"
 
 cleanup_test
