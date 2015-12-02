@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +96,25 @@ static int copyfile_write(struct copyfile *);
 static void copyfile_advance(struct copyfile *);
 static int copyfile_finish(struct copyfile *);
 static void copyfile_close(struct copyfile *);
+
+static volatile sig_atomic_t timetodie;
+
+/*
+ * Signal handler
+ */
+static void
+signal_handler(int sig)
+{
+
+	switch (sig) {
+	case SIGINT:
+	case SIGTERM:
+		++timetodie;
+		break;
+	default:
+		/* nothing */;
+	}
+}
 
 /* open a file and populate the state structure */
 static struct copyfile *
@@ -556,7 +576,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 
 	/* loop over the input and compare with the destination */
 	retries = 0;
-	for (;;) {
+	while (!timetodie) {
 		if (copyfile_refresh(src) != 0)
 			goto fail;
 
@@ -661,6 +681,7 @@ main(int argc, char *argv[])
 	uintmax_t maxsize;
 	char *e;
 	int opt;
+	int retval = 0;
 
 	maxsize = 0;
 	logfile = NULL;
@@ -698,7 +719,14 @@ main(int argc, char *argv[])
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+
 	if (tsdfx_copier(argv[0], argv[1], maxsize) != 0)
-		exit(1);
-	exit(0);
+		retval = 1;
+
+	signal(SIGTERM, SIG_DFL);
+	signal(SIGINT, SIG_DFL);
+
+	exit(retval);
 }
