@@ -69,6 +69,7 @@ void
 tsd_tqueue_destroy(struct tsd_tqueue *tq)
 {
 
+	tsd_tqueue_drain(tq);
 	memset(tq, 0, sizeof *tq);
 	free(tq);
 }
@@ -151,4 +152,21 @@ tsd_tqueue_sched(struct tsd_tqueue *tq)
 			tsd_task_start(t);
 	}
 	return (tq->nrunning);
+}
+
+/*
+ * Stop and remove all tasks from queue
+ */
+void
+tsd_tqueue_drain(struct tsd_tqueue *tq)
+{
+	struct tsd_task *t;
+
+	while ((t = tq->first) != NULL) {
+		ASSERT(t->queue == tq);
+		tsd_task_stop(t);
+		tq->first = t->qnext;
+		t->qprev = t->qnext = NULL;
+		t->queue = NULL;
+	}
 }
