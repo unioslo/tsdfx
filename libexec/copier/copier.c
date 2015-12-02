@@ -43,6 +43,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -468,7 +469,7 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 
 /* read from both files, compare and write if necessary */
 int
-tsdfx_copier(const char *srcfn, const char *dstfn)
+tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 {
 #if HAVE_STATVFS
 	struct statvfs st;
@@ -526,8 +527,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 	/* directories? */
 	if (copyfile_isdir(src)) {
 		copyfile_copystat(src, dst);
-		if (copyfile_finish(src) != 0 ||
-		    copyfile_finish(dst) != 0)
+		if (copyfile_finish(src) != 0 || copyfile_finish(dst) != 0)
 			goto fail;
 		copyfile_close(src);
 		copyfile_close(dst);
@@ -574,13 +574,13 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		 * work.
 		 */
 		VERBOSE("sdiff %ld < %ld tdiff %ld < %ld",
-			src->st.st_size - src->offset, 2*BLOCKSIZE,
-			time(NULL) - src->st.st_mtime, MAX_RETRIES / 10);
-		if (src->st.st_size != dst->st.st_size &&
+		    src->st.st_size - src->offset, 2*BLOCKSIZE,
+		    time(NULL) - src->st.st_mtime, MAX_RETRIES / 10);
+		if ((maxsize == 0 || (size_t)src->offset <= maxsize) &&
+		    src->st.st_size != dst->st.st_size &&
 		    src->st.st_size - src->offset < 2*BLOCKSIZE &&
 		    time(NULL) - src->st.st_mtime < MAX_RETRIES / 10) {
-			VERBOSE("waiting for the file end to move more than %ld from last read block",
-				BLOCKSIZE);
+			VERBOSE("waiting for the file to grow");
 			sleep(1);
 			continue;
 		}
@@ -600,18 +600,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 				    (size_t)src->nexthole);
 #endif
 			/* end of source file */
-			copyfile_copystat(src, dst);
-			if (copyfile_finish(src) != 0 ||
-			    copyfile_finish(dst) != 0)
-				goto fail;
-			if (memcmp(src->digest, dst->digest, SHA1_DIGEST_LEN) != 0) {
-				ERROR("digest differs after copy");
-				goto fail;
-			}
-			tsdfx_log_complete(src, dst);
-			copyfile_close(src);
-			copyfile_close(dst);
-			return (0);
+			break;
 		}
 		retries = 0;
 		if (copyfile_refresh(dst) != 0 || copyfile_read(dst) != 0)
@@ -624,8 +613,27 @@ tsdfx_copier(const char *srcfn, const char *dstfn)
 		}
 		copyfile_advance(src);
 		copyfile_advance(dst);
+
+		/* stop if we have passed the threshold */
+		if (maxsize && (size_t)src->st.st_size > maxsize) {
+			WARNING("giving up as source size is > %zu", maxsize);
+			break;
+		}
 	}
-	/* not reached */
+
+	/* normal termination (file end or maxsize reached) */
+	copyfile_copystat(src, dst);
+	if (copyfile_finish(src) != 0 || copyfile_finish(dst) != 0)
+		goto fail;
+	if (memcmp(src->digest, dst->digest, SHA1_DIGEST_LEN) != 0) {
+		ERROR("digest differs after copy");
+		goto fail;
+	}
+	tsdfx_log_complete(src, dst);
+	copyfile_close(src);
+	copyfile_close(dst);
+	return (0);
+
 fail:
 	serrno = errno;
 	ERROR("failed to copy %s to %s", srcfn, dstfn);
@@ -642,7 +650,7 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-copier [-nv] [-l logname] src dst\n");
+	fprintf(stderr, "usage: tsdfx-copier [-nv] [-m maxsize] [-l logname] src dst\n");
 	exit(1);
 }
 
@@ -650,16 +658,24 @@ int
 main(int argc, char *argv[])
 {
 	const char *logfile;
+	uintmax_t maxsize;
+	char *e;
 	int opt;
 
+	maxsize = 0;
 	logfile = NULL;
-	while ((opt = getopt(argc, argv, "fhl:nv")) != -1)
+	while ((opt = getopt(argc, argv, "fhl:nm:v")) != -1)
 		switch (opt) {
 		case 'f':
 			++tsdfx_force;
 			break;
 		case 'l':
 			logfile = optarg;
+			break;
+		case 'm':
+			maxsize = strtoumax(optarg, &e, 10);
+			if (e == NULL || *e != '\0' || maxsize > SIZE_MAX)
+				ERROR("-m: invalid argument");
 			break;
 		case 'n':
 			++tsdfx_dryrun;
@@ -682,7 +698,7 @@ main(int argc, char *argv[])
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
 
-	if (tsdfx_copier(argv[0], argv[1]) != 0)
+	if (tsdfx_copier(argv[0], argv[1], maxsize) != 0)
 		exit(1);
 	exit(0);
 }

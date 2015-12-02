@@ -129,5 +129,6 @@ void tsd_tqueue_destroy(struct tsd_tqueue *);
 int tsd_tqueue_insert(struct tsd_tqueue *, struct tsd_task *);
 int tsd_tqueue_remove(struct tsd_tqueue *, struct tsd_task *);
 unsigned int tsd_tqueue_sched(struct tsd_tqueue *);
+void tsd_tqueue_drain(struct tsd_tqueue *);
 
 #endif
