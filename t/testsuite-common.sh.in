@@ -79,5 +79,6 @@ run_daemon() {
 }
 
 cleanup_test() {
+	chmod -R u+rwX "${tstdir}"
 	rm -rf "${tstdir}"
 }
