@@ -469,19 +469,40 @@ copyfile_close(struct copyfile *cf)
 	free(cf);
 }
 
+static void
+digest2hex(const struct copyfile *cf, char *s, const size_t len)
+{
+	int i;
+
+	ASSERT(len >= SHA1_DIGEST_LEN * 2 + 1);
+	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
+		s[i * 2] = "0123456789abcdef"[cf->digest[i] >> 4];
+		s[i * 2 + 1] = "0123456789abcdef"[cf->digest[i] & 0xf];
+	}
+	s[i * 2] = 0;
+}
+
 /* log a completed transfer */
 void
 tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 {
 	char hex[SHA1_DIGEST_LEN * 2 + 1];
-	int i;
 
-	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
-		hex[i * 2] = "0123456789abcdef"[dst->digest[i] >> 4];
-		hex[i * 2 + 1] = "0123456789abcdef"[dst->digest[i] & 0xf];
-	}
-	hex[i * 2] = 0;
+	digest2hex(dst, hex, sizeof(hex));
 	NOTICE("copied %s to %s len %zu bytes sha1 %s in %lu.%03lu s",
+	    src->name, dst->name, (size_t)dst->st.st_size, hex,
+	    (unsigned long)dst->tve.tv_sec,
+	    (unsigned long)dst->tve.tv_usec / 1000);
+}
+
+/* log a interrupted transfer */
+void
+tsdfx_log_interrupted(const struct copyfile *src, const struct copyfile *dst)
+{
+	char hex[SHA1_DIGEST_LEN * 2 + 1];
+
+	digest2hex(dst, hex, sizeof(hex));
+	NOTICE("copied %s to %s len %zu bytes sha1 %s in %lu.%03lu s before interrupted",
 	    src->name, dst->name, (size_t)dst->st.st_size, hex,
 	    (unsigned long)dst->tve.tv_sec,
 	    (unsigned long)dst->tve.tv_usec / 1000);
@@ -496,8 +517,9 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 	off_t needbytes;
 #endif
 	struct copyfile *src, *dst;
-	int retries, serrno;
+	int retries, retval, serrno;
 
+	retval = 0;
 	/* check file names */
 	/* XXX should also compare type (trailing /) */
 	if (!srcfn || !dstfn || !*srcfn || !*dstfn) {
@@ -649,10 +671,14 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 		ERROR("digest differs after copy");
 		goto fail;
 	}
-	tsdfx_log_complete(src, dst);
+	if (timetodie || (maxsize && (size_t)src->st.st_size > maxsize)) {
+		tsdfx_log_interrupted(src, dst);
+		retval = -1;
+	} else
+		tsdfx_log_complete(src, dst);
 	copyfile_close(src);
 	copyfile_close(dst);
-	return (0);
+	return (retval);
 
 fail:
 	serrno = errno;
@@ -681,7 +707,6 @@ main(int argc, char *argv[])
 	uintmax_t maxsize;
 	char *e;
 	int opt;
-	int retval = 0;
 
 	maxsize = 0;
 	logfile = NULL;
@@ -723,10 +748,6 @@ main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 
 	if (tsdfx_copier(argv[0], argv[1], maxsize) != 0)
-		retval = 1;
-
-	signal(SIGTERM, SIG_DFL);
-	signal(SIGINT, SIG_DFL);
-
-	exit(retval);
+		exit(1);
+	exit(0);
 }
