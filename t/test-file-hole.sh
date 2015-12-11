@@ -10,10 +10,10 @@ write_holy_file() {
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
     dd bs=${blocksize} seek=3 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
-    sleep 5
+    sleep 3
     dd bs=${blocksize} seek=0 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
-    sleep 5
+    sleep 3
     dd bs=${blocksize} seek=2 count=1 conv=notrunc \
 	if=/dev/urandom of="$filename" > /dev/null 2>&1
 }

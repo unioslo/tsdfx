@@ -63,10 +63,12 @@ static int tsdfx_force;
 static mode_t mumask;
 
 /* XXX make these configurable */
+
 /* how much to attempt to copy at a time */
 #define BLOCKSIZE	(1024*1024)
-/* how many tenths of a second to wait for more data after EOF */
-#define MAX_RETRIES	100
+
+/* how long (in seconds) to wait after a file was last modified */
+#define MIN_AGE		6
 
 struct copyfile {
 	char		 name[PATH_MAX];
@@ -77,9 +79,6 @@ struct copyfile {
 	sha1_ctx	 sha_ctx;
 	uint8_t		 digest[SHA1_DIGEST_LEN];
 	off_t		 offset;
-#ifdef SEEK_HOLE
-	off_t		 nexthole;
-#endif
 	size_t		 bufsize, buflen;
 	char		 buf[];
 };
@@ -109,9 +108,6 @@ copyfile_open(const char *fn, int mode, int perm)
 		goto fail;
 	sha1_init(&cf->sha_ctx);
 	cf->bufsize = BLOCKSIZE;
-#ifdef SEEK_HOLE
-	cf->nexthole = (off_t)-1;
-#endif
 
 	/* copy name, check for trailing /, then strip it off */
 	if ((len = strlcpy(cf->name, fn, sizeof cf->name)) >= sizeof cf->name) {
@@ -238,7 +234,6 @@ copyfile_isdir(const struct copyfile *cf)
 static int
 copyfile_read(struct copyfile *cf)
 {
-	size_t maxlen;
 	ssize_t rlen;
 
 	if (copyfile_isdir(cf))
@@ -254,52 +249,7 @@ copyfile_read(struct copyfile *cf)
 	if (cf->offset == cf->st.st_size)
 		return (0);
 
-#ifdef SEEK_HOLE
-	/*
-	 * If nexthole is unknown or seem to be in the next block to read,
-	 * update its value to check if this is still the case.
-	 */
-	if (cf->nexthole == (off_t)-1 ||
-	    cf->nexthole < (off_t)(cf->offset + cf->bufsize)) {
-		cf->nexthole = lseek(cf->fd, cf->offset, SEEK_HOLE);
-		if (cf->nexthole == (off_t)-1) {
-			ERROR("%s: lseek(SEEK_HOLE) failed at %zu: %s",
-			    cf->name, (size_t)cf->offset, strerror(errno));
-			return (-1);
-		} else if (cf->nexthole < (off_t)cf->st.st_size) {
-			VERBOSE("%s: found hole at %zu",
-			    cf->name, (size_t)cf->nexthole);
-		}
-		if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
-			ERROR("%s: lseek(SEEK_SET) failed at %zu: %s",
-			    cf->name, (size_t)cf->offset, strerror(errno));
-			return (-1);
-		}
-		ASSERTF(cf->nexthole == (off_t)-1 || cf->nexthole >= cf->offset,
-		    "%s: a hole has opened up behind us: %zu < %zu",
-		    cf->name, (size_t)cf->nexthole, (size_t)cf->offset);
-	}
-
-	/*
-	 * If the next hole is in the next block, and not at the end of
-	 * the file, refuse to read this block and pretend to have reached
-	 * the end of the file.  The main loop will retry in a bit.
-	 * Otherwise, read as much as we can up until the hole.
-	 */
-	if (cf->nexthole != cf->st.st_size &&
-	    (cf->nexthole - cf->offset) < (off_t)cf->bufsize) {
-		ASSERT(cf->buflen == 0);
-		WARNING("%s: found a hole at position %zu, backing off",
-		    cf->name, (size_t)cf->nexthole);
-		return (0);
-	}
-	maxlen = cf->nexthole - cf->offset;
-	if (maxlen > cf->bufsize)
-		maxlen = cf->bufsize;
-#else
-	maxlen = cf->bufsize;
-#endif
-	if ((rlen = read(cf->fd, cf->buf, maxlen)) < 0) {
+	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
 		ERROR("%s: read(): %s", cf->name, strerror(errno));
 		return (-1);
 	}
@@ -476,7 +426,8 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 	off_t needbytes;
 #endif
 	struct copyfile *src, *dst;
-	int retries, serrno;
+	int serrno;
+	time_t now;
 
 	/* check file names */
 	/* XXX should also compare type (trailing /) */
@@ -555,54 +506,39 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 		    (size_t)dst->st.st_size);
 
 	/* loop over the input and compare with the destination */
-	retries = 0;
 	for (;;) {
 		if (copyfile_refresh(src) != 0)
 			goto fail;
 
 		/*
-		 * If the source is less than 2*BLOCKSIZE shorter than
-		 * the destination, wait to see if the situation
-		 * changes and copy the second to last BLOCKSIZE bytes
-		 * when that threshold is met.  Only copy the last
-		 * BLOCKSIZE bytes when source mtime have not changed
-		 * for X seconds.  X is the same as retry time when no
-		 * new bytes are available for read.  This give 10
-		 * seconds at the moment, which must be more than the
-		 * 5 seconds used in the testsuite check
-		 * test-file-hole.sh to make sure the test suite check
-		 * work.
+		 * If we are within two blocks of the end of the source
+		 * file, wait until it is at least MIN_AGE seconds old
+		 * before reading more data from it.
 		 */
-		VERBOSE("sdiff %ld < %ld tdiff %ld < %ld",
-		    src->st.st_size - src->offset, 2*BLOCKSIZE,
-		    time(NULL) - src->st.st_mtime, MAX_RETRIES / 10);
+		time(&now);
+		VERBOSE("sdiff %zu < %zu tdiff %lu < %lu",
+		    (size_t)(src->st.st_size - src->offset),
+		    (size_t)(2*BLOCKSIZE),
+		    (unsigned long)(now - src->st.st_mtime),
+		    (unsigned long)MIN_AGE);
 		if ((maxsize == 0 || (size_t)src->offset <= maxsize) &&
-		    src->st.st_size != dst->st.st_size &&
+		    src->st.st_size > src->offset &&
 		    src->st.st_size - src->offset < 2*BLOCKSIZE &&
-		    time(NULL) - src->st.st_mtime < MAX_RETRIES / 10) {
+		    now > src->st.st_mtime &&
+		    now - src->st.st_mtime < MIN_AGE) {
 			VERBOSE("waiting for the file to grow");
 			sleep(1);
 			continue;
 		}
 
+		/* read as much as we can from the source file */
 		if (copyfile_read(src) != 0)
 			goto fail;
-		if (src->buflen == 0) {
-			/* wait a bit to see if it keeps growing */
-			if (retries++ < MAX_RETRIES) {
-				usleep(100 * 1000);
-				continue;
-			}
-#ifdef SEEK_HOLE
-			/* did we hit a hole? */
-			if (src->offset < src->st.st_size)
-				WARNING("giving up waiting for hole at %zu to fill",
-				    (size_t)src->nexthole);
-#endif
+		if (src->buflen == 0)
 			/* end of source file */
 			break;
-		}
-		retries = 0;
+
+		/* check and read from destination file */
 		if (copyfile_refresh(dst) != 0 || copyfile_read(dst) != 0)
 			goto fail;
 		if (copyfile_compare(src, dst) != 0) {
