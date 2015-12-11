@@ -146,15 +146,14 @@ main(int argc, char *argv[])
 		exit(1);
 
 	if (!tsdfx_oneshot) {
-		NOTICE("creating pid file %s", pidfilename);
+		VERBOSE("creating pid file %s", pidfilename);
 		pid = 0;
 		pidfh = tsd_pidfile_open(pidfilename, 0644, &pid);
 		if (pidfh == NULL) {
 			ERROR("unable to create pid file: %s", strerror(errno));
 			exit(1);
 		}
-
-		if (0 > daemon(0, 0)) {
+		if (daemon(0, 0) < 0) {
 			ERROR("unable to daemonize: %s", strerror(errno));
 			exit(1);
 		}
@@ -162,8 +161,7 @@ main(int argc, char *argv[])
 			ERROR("unable to write pid to file: %s", strerror(errno));
 			exit(1);
 		}
-	} else {
-		NOTICE("not creating pid file");
+		NOTICE("tsdfx daemonized");
 	}
 
 	tsdfx_run(mapfile);
@@ -173,7 +171,7 @@ main(int argc, char *argv[])
 	tsd_log_exit();
 
 	if (!tsdfx_oneshot) {
-		NOTICE("removing pid file %s", pidfilename);
+		VERBOSE("removing pid file %s", pidfilename);
 		tsd_pidfile_remove(pidfh);
 		pidfh = NULL;
 	}
