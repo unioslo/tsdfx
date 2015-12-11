@@ -58,10 +58,10 @@
 #include <tsd/task.h>
 
 #include "tsdfx.h"
+#include "tsdfx_map.h"
 #include "tsdfx_scan.h"
 
-#define INITIAL_BUFFER_SIZE	(PATH_MAX * 2)
-#define MAXIMUM_BUFFER_SIZE	(PATH_MAX * 1024)
+#define SCAN_BUFFER_SIZE	16384
 
 /* XXX this needs to be configurable */
 #define SCAN_INTERVAL		300
@@ -71,6 +71,7 @@
  */
 struct tsdfx_scan_task_data {
 	/* what to scan */
+	struct tsdfx_map *map;
 	char path[PATH_MAX];
 	struct stat st;
 
@@ -105,16 +106,16 @@ static int tsdfx_scan_start(struct tsd_task *);
 static int tsdfx_scan_stop(struct tsd_task *);
 
 /*
- * Regular expression used to validate the output from the scan task.  It
- * must consist of zero or more lines, each representing a path.  Each
- * path must start but not end with a slash, and each slash must be
- * followed by a sequence of one or more characters from the POSIX
- * Portable Filename Character Set, the first of which is not a period.
+ * Regular expression used to validate the output from the scan task.
+ * Each line of output represents a path which must start with a slash,
+ * and each slash must be followed by a sequence of one or more characters
+ * from the POSIX Portable Filename Character Set, the first of which is
+ * not a period.  If the path is a directory, it ends with a slash.
  *
  * XXX allow spaces as well for now
  */
 #define SCAN_REGEX \
-	"^((/[0-9A-Za-z_-]([ 0-9A-Za-z._-]*[0-9A-Za-z._-])?)+/?\n)*$"
+	"^(/[0-9A-Za-z_-]([ 0-9A-Za-z._-]*[0-9A-Za-z._-])?)+/?$"
 static regex_t scan_regex;
 
 /*
@@ -198,7 +199,7 @@ tsdfx_scan_remove(struct tsd_task *t)
  * Prepare a scan task.
  */
 struct tsd_task *
-tsdfx_scan_new(const char *path)
+tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 {
 	char name[NAME_MAX];
 	struct tsdfx_scan_task_data *std = NULL;
@@ -224,10 +225,11 @@ tsdfx_scan_new(const char *path)
 	/* create task data */
 	if ((std = calloc(1, sizeof *std)) == NULL)
 		goto fail;
+	std->map = map;
 	if (strlcpy(std->path, path, sizeof std->path) >= sizeof std->path)
 		goto fail;
 	std->st = st;
-	std->bufsz = INITIAL_BUFFER_SIZE;
+	std->bufsz = SCAN_BUFFER_SIZE;
 	std->buflen = 0;
 	if ((std->buf = malloc(std->bufsz)) == NULL)
 		goto fail;
@@ -395,38 +397,22 @@ tsdfx_scan_reset(struct tsd_task *t)
 }
 
 /*
- * Read all available data from a single task, validating it as we go.
+ * Read available data from a single task, validate it and start copiers.
  */
 static int
 tsdfx_scan_slurp(struct tsd_task *t)
 {
 	struct tsdfx_scan_task_data *std = t->ud;
-	size_t bufsz;
+	size_t bufsz, len;
 	ssize_t rlen;
-	char *buf;
-	int len;
+	char *buf, *end, *p, *q;
 
-	VERBOSE("%s", std->path);
+	/* read as much as we can in the space we have left */
 	len = 0;
 	do {
-		/* make sure we have room for at least one more character */
-		if (std->buflen + 2 >= (int)std->bufsz) {
-			bufsz = std->bufsz * 2;
-			if (bufsz > MAXIMUM_BUFFER_SIZE)
-				bufsz = MAXIMUM_BUFFER_SIZE;
-			if (bufsz <= std->bufsz) {
-				errno = ENOSPC;
-				return (-1);
-			}
-			if ((buf = realloc(std->buf, bufsz)) == NULL)
-				return (-1);
-			std->buf = buf;
-			std->bufsz = bufsz;
-		}
-
 		/* where do we start, and how much room do we have? */
 		buf = std->buf + std->buflen;
-		bufsz = std->bufsz - std->buflen - 1;
+		bufsz = std->bufsz - std->buflen;
 
 		/* read and update pointers and counters */
 		if ((rlen = read(t->pout, buf, bufsz)) < 0) {
@@ -434,11 +420,45 @@ tsdfx_scan_slurp(struct tsd_task *t)
 				break;
 			return (rlen);
 		}
-		VERBOSE("read %ld characters", (long)rlen);
+		VERBOSE("read %ld characters from child %ld",
+		    (long)rlen, (long)t->pid);
 		std->buflen += rlen;
 		std->buf[std->buflen] = '\0';
 		len += rlen;
-	} while (rlen > 0);
+	} while (rlen > 0 && (size_t)len < bufsz);
+	end = std->buf + std->buflen;
+
+	/* process output line by line */
+	for (p = q = std->buf; p < end; p = q) {
+		for (q = p; q < end && *q != '\n'; ++q)
+			/* nothing */ ;
+		if (q == end)
+			break;
+		*q++ = '\0';
+		if (regexec(&scan_regex, p, 0, NULL, 0) != 0) {
+			WARNING("invalid output from child %ld for %s",
+			    (long)t->pid, std->path);
+			continue;
+		}
+		VERBOSE("[%s]", p);
+		tsdfx_map_process(std->map, p);
+	}
+
+	/*
+	 * After the above loop, q points to the first character of the
+	 * first incomplete line, or the beginning of the buffer if it is
+	 * empty or does not contain at least one line.  If the amount of
+	 * data remaining exceeds the maximum length of a path name (not
+	 * including the newline, which is still missing), something is
+	 * wrong.  Otherwise, move what's left to the start of the buffer.
+	 */
+	if ((len = end - q) > PATH_MAX) {
+		errno = ENAMETOOLONG;
+		return (-1);
+	}
+	if (q > std->buf)
+		memmove(std->buf, q, std->buflen = len);
+
 	return (len);
 }
 
@@ -466,8 +486,8 @@ tsdfx_scan_poll(struct tsd_task *t)
 		}
 		if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
 			/* validate */
-			if (regexec(&scan_regex, std->buf, 0, NULL, 0) != 0) {
-				WARNING("invalid output from child %ld for %s",
+			if (std->buflen > 0) {
+				WARNING("incomplete output from child %ld for %s",
 				    (long)t->pid, std->path);
 				t->state = TASK_FAILED;
 			} else {

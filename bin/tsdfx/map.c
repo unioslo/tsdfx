@@ -52,14 +52,14 @@
 #include "tsdfx_scan.h"
 #include "tsdfx_copy.h"
 
-struct map {
+struct tsdfx_map {
 	char name[NAME_MAX];
 	char srcpath[PATH_MAX];
 	char dstpath[PATH_MAX];
 	struct tsd_task *task;
 };
 
-static struct map **map;
+static struct tsdfx_map **map;
 static size_t map_sz;
 static int map_len;
 
@@ -83,12 +83,12 @@ verify_path(const char *path, char *buf)
 }
 
 /*
- * Create a new struct map
+ * Create a new struct tsdfx_map
  */
-static struct map *
+static struct tsdfx_map *
 map_new(const char *fn, int n, const char *name, const char *src, const char *dst)
 {
-	struct map *m;
+	struct tsdfx_map *m;
 
 	if ((m = calloc(1, sizeof *m)) == NULL) {
 		ERROR("calloc()");
@@ -113,10 +113,10 @@ map_new(const char *fn, int n, const char *name, const char *src, const char *ds
 }
 
 /*
- * Delete a struct map
+ * Delete a struct tsdfx_map
  */
 static void
-map_delete(struct map *m)
+map_delete(struct tsdfx_map *m)
 {
 
 	if (m != NULL) {
@@ -131,8 +131,8 @@ map_delete(struct map *m)
 static int
 map_compare(const void *a, const void *b)
 {
-	const struct map *ma = *(const struct map * const *)a;
-	const struct map *mb = *(const struct map * const *)b;
+	const struct tsdfx_map *ma = *(const struct tsdfx_map * const *)a;
+	const struct tsdfx_map *mb = *(const struct tsdfx_map * const *)b;
 
 	return (strcmp(ma->name, mb->name));
 }
@@ -145,12 +145,12 @@ map_compare(const void *a, const void *b)
  * the list twice: once by name and once by source path.
  */
 static int
-map_read(const char *fn, struct map ***map, size_t *map_sz, int *map_len)
+map_read(const char *fn, struct tsdfx_map ***map, size_t *map_sz, int *map_len)
 {
 	FILE *f;
 	char **words, *p;
 	int i, j, lno, nwords;
-	struct map **m, **tm;
+	struct tsdfx_map **m, **tm;
 	size_t sz;
 	int len;
 
@@ -239,7 +239,7 @@ fail:
 int
 tsdfx_map_reload(const char *fn)
 {
-	struct map **newmap;
+	struct tsdfx_map **newmap;
 	size_t newmap_sz;
 	int newmap_len;
 	int i, j, res;
@@ -264,7 +264,8 @@ tsdfx_map_reload(const char *fn)
 		} else if (res > 0) {
 			/* new task */
 			VERBOSE("adding %s", newmap[j]->name);
-			newmap[j]->task = tsdfx_scan_new(newmap[j]->srcpath);
+			newmap[j]->task =
+			    tsdfx_scan_new(newmap[j], newmap[j]->srcpath);
 			if (newmap[j]->task == NULL)
 				goto fail;
 			++j;
@@ -311,6 +312,16 @@ fail:
 }
 
 /*
+ * Process a file reported by the scanner.
+ */
+int
+tsdfx_map_process(struct tsdfx_map *map, const char *path)
+{
+
+	return (tsdfx_copy_wrap(map->srcpath, map->dstpath, path));
+}
+
+/*
  * Check all our map entries to see if a scan task recently completed.  If
  * so, set up and kick off compare / copy tasks.  Reschedule the completed
  * scan tasks.
@@ -323,8 +334,6 @@ tsdfx_map_sched(void)
 	for (i = 0; i < map_len; ++i) {
 		switch (tsdfx_scan_state(map[i]->task)) {
 		case TASK_FINISHED:
-			tsdfx_copy_wrap(map[i]->srcpath, map[i]->dstpath,
-			    tsdfx_scan_result(map[i]->task));
 			tsdfx_scan_reset(map[i]->task);
 			break;
 		case TASK_INVALID:

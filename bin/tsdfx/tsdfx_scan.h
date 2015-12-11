@@ -32,7 +32,7 @@
 
 struct tsd_task;
 
-struct tsd_task *tsdfx_scan_new(const char *);
+struct tsd_task *tsdfx_scan_new(struct tsdfx_map *, const char *);
 void tsdfx_scan_delete(struct tsd_task *);
 int tsdfx_scan_reset(struct tsd_task *);
 
