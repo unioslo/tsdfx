@@ -41,10 +41,10 @@
 #include "tsdfx_copy.h"
 #include "tsdfx.h"
 
-int tsdfx_oneshot = 0;
+int tsdfx_oneshot;
 
 static volatile sig_atomic_t sighup;
-static volatile sig_atomic_t timetodie;
+static volatile sig_atomic_t killed;
 
 /*
  * Signal handler
@@ -59,7 +59,7 @@ signal_handler(int sig)
 		break;
 	case SIGINT:
 	case SIGTERM:
-		++timetodie;
+		killed = sig;
 		break;
 	default:
 		/* nothing */;
@@ -73,6 +73,7 @@ int
 tsdfx_init(const char *mapfile)
 {
 
+	NOTICE("tsdfx starting");
 	if (tsdfx_copy_init() != 0)
 		return (-1);
 	if (tsdfx_scan_init() != 0)
@@ -88,6 +89,7 @@ tsdfx_exit(void)
 	tsdfx_map_exit();
 	tsdfx_scan_exit();
 	tsdfx_copy_exit();
+	NOTICE("tsdfx stopping");
 	return (0);
 }
 
@@ -96,12 +98,10 @@ tsdfx_run(const char *mapfile)
 {
 	int scan_running, copy_running;
 
-	WARNING("tsdfx started");
-
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
-	while (!timetodie) {
+	while (!killed) {
 		/* check for sighup */
 		if (sighup) {
 			sighup = 0;
@@ -127,6 +127,9 @@ tsdfx_run(const char *mapfile)
 	signal(SIGTERM, SIG_DFL);
 	signal(SIGINT, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
-
-	WARNING("tsdfx exits");
+#if 0
+	/* this would prevent cleanup, needs to be done in main() */
+	if (killed)
+		raise(killed);
+#endif
 }
