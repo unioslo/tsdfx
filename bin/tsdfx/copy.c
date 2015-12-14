@@ -91,11 +91,11 @@ static struct tsdfx_copy_queueinfo {
 } tsdfx_queueinfo[TSDFX_COPY_NQUEUES] = {
 	{
 		.max_size = 1024*1024,
-		.max_tasks = 2,
+		.max_tasks = 8,
 	},
 	{
 		.max_size = SIZE_MAX,
-		.max_tasks = 8,
+		.max_tasks = 4,
 	},
 };
 static struct tsd_tqueue *tsdfx_copy_queues[TSDFX_COPY_NQUEUES];
@@ -239,7 +239,7 @@ tsdfx_copy_new(const char *src, const char *dst)
 	/* Select queue based on current size */
 	for (i = 0; i < TSDFX_COPY_NQUEUES; ++i) {
 		if ((size_t)st.st_size <= tsdfx_queueinfo[i].max_size) {
-			WARNING("Assigning %s to copier for files size <= %zu",
+			VERBOSE("Assigning %s to copier for files size <= %zu",
 			    src, tsdfx_queueinfo[i].max_size);
 			ctd->maxsize = tsdfx_queueinfo[i].max_size_str;
 			if (tsd_tqueue_insert(tsdfx_copy_queues[i], t) != 0)
@@ -335,126 +335,96 @@ tsdfx_copy_poll(struct tsd_task *t)
  * start copy tasks for each file.
  */
 int
-tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *files)
+tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *path)
 {
+	char srcpath[PATH_MAX], dstpath[PATH_MAX];
 #if HAVE_STATVFS
 	struct statvfs st;
 #endif
 	struct stat srcst, dstst;
-	char srcpath[PATH_MAX], *sf, dstpath[PATH_MAX], *df;
-	size_t slen, dlen, maxlen;
-	const char *p, *q;
 	mode_t mode;
 
-	/* prime the source and destination paths */
-	slen = strlcpy(srcpath, srcdir, sizeof srcpath);
-	dlen = strlcpy(dstpath, dstdir, sizeof dstpath);
-	if (slen >= sizeof srcpath || dlen >= sizeof dstpath) {
+	/* create full paths */
+	if (snprintf(srcpath, PATH_MAX, "%s%s", srcdir, path) >= PATH_MAX ||
+	    snprintf(dstpath, PATH_MAX, "%s%s", dstdir, path) >= PATH_MAX) {
 		errno = ENAMETOOLONG;
 		return (-1);
 	}
-	/* sf and df point to the terminating NULS */
-	sf = srcpath + slen;
-	df = dstpath + dlen;
-	/* maxlen is the maximum acceptable file name length */
-	slen = sizeof srcpath - slen - 1;
-	dlen = sizeof dstpath - dlen - 1;
-	maxlen = slen > dlen ? dlen : slen;
 
-	for (p = q = files; *p != '\0'; p = ++q) {
-		while (*q != '\0' && *q != '\n')
-			++q;
-		if (q == p) {
-			/* empty line, XXX should warn */
-			continue;
+	/* log and check for duplicate */
+	if (tsdfx_copy_find(srcpath, dstpath) != NULL)
+		return (0);
+	VERBOSE("%s -> %s", srcpath, dstpath);
+
+	/* source must exist */
+	if (lstat(srcpath, &srcst) != 0) {
+		WARNING("%s: %s", srcpath, strerror(errno));
+		return (-1);
+	}
+
+	/*
+	 * Some SFTP clients seem to mangle file permissions so we
+	 * sometimes end up with files or directories on the
+	 * import side with weird permissions, or even none at
+	 * all.  Try to force a sane minimum set of permissions.
+	 */
+	mode = srcst.st_mode;
+	/* writeable for user, readable for group */
+	if ((mode & 0640) != 0640)
+		mode |= 0640;
+	/* directories must also be searchable */
+	if (S_ISDIR(mode) && (mode & 0110) != 0110)
+		mode |= 0110;
+	/* apply changes */
+	if (mode != srcst.st_mode) {
+		NOTICE("%s: changing permissions from %o to %o",
+		    srcpath, srcst.st_mode & 07777, mode & 07777);
+		if (chmod(srcpath, mode & 07777) != 0) {
+			ERROR("%s: %s", srcpath, strerror(errno));
+			return (-1);
 		}
-		if ((size_t)(q - p) >= maxlen) {
-			/* too long, XXX should warn */
-			continue;
+		srcst.st_mode = mode;
+	}
+
+	/* check destination */
+	if (lstat(dstpath, &dstst) == 0) {
+		if ((srcst.st_mode & S_IFMT) != (dstst.st_mode & S_IFMT)) {
+			ERROR("%s and %s both exist with different types",
+			    srcpath, dstpath);
+			errno = EEXIST;
+			return (-1);
 		}
-		memcpy(sf, p, q - p);
-		sf[q - p] = '\0';
-		memcpy(df, p, q - p);
-		df[q - p] = '\0';
-
-		/* log and check for duplicate */
-		if (tsdfx_copy_find(srcpath, dstpath) != NULL)
-			continue;
-
-		VERBOSE("%s -> %s", srcpath, dstpath);
-
-		/* source must exist */
-		if (lstat(srcpath, &srcst) != 0) {
-			WARNING("%s: %s", srcpath, strerror(errno));
-			continue;
-		}
-
-		/* ignore everything except files and directories */
-		if (!S_ISREG(srcst.st_mode) && !S_ISDIR(srcst.st_mode)) {
-			WARNING("%s: ignored, neither file nor directory", srcpath);
-			continue;
-		}
-
 		/*
-		 * Some SFTP clients seem to mangle file permissions so we
-		 * sometimes end up with files or directories on the
-		 * import side with weird permissions, or even none at
-		 * all.  Try to force a sane minimum set of permissions.
+		 * Attempt to avoid unnecessarily starting a
+		 * copier child for a file that's already been
+		 * copied.
+		 * XXX hack
 		 */
-		mode = srcst.st_mode;
-		/* writeable for user, readable for group */
-		if ((mode & 0640) != 0640)
-			mode |= 0640;
-		/* directories must also be searchable */
-		if (S_ISDIR(mode) && (mode & 0110) != 0110)
-			mode |= 0110;
-		/* apply changes */
-		if (mode != srcst.st_mode) {
-			NOTICE("%s: changing permissions from %o to %o",
-			    srcpath, srcst.st_mode & 07777, mode & 07777);
-			if (chmod(srcpath, mode & 07777) != 0)
-				WARNING("%s: %s", srcpath, strerror(errno));
-			else
-				srcst.st_mode = mode;
-		}
-
-		/* check destination */
-		if (lstat(dstpath, &dstst) == 0) {
-			if ((srcst.st_mode & S_IFMT) != (dstst.st_mode & S_IFMT)) {
-				WARNING("%s and %s both exist with different types",
-				    srcpath, dstpath);
-				continue;
-			}
-			/*
-			 * Attempt to avoid unnecessarily starting a
-			 * copier child for a file that's already been
-			 * copied.
-			 * XXX hack
-			 */
-			srcst.st_mode &= ~TSDFX_COPY_UMASK;
-			if (S_ISREG(srcst.st_mode) &&
-			    srcst.st_size == dstst.st_size &&
-			    srcst.st_mode == dstst.st_mode &&
-			    srcst.st_mtime == dstst.st_mtime)
-				continue;
-			if (S_ISDIR(srcst.st_mode) &&
-			    srcst.st_mode == dstst.st_mode)
-				continue;
-		} else {
-			memset(&dstst, 0, sizeof dstst);
-		}
+		srcst.st_mode &= ~TSDFX_COPY_UMASK;
+		if (S_ISREG(srcst.st_mode) &&
+		    srcst.st_size == dstst.st_size &&
+		    srcst.st_mode == dstst.st_mode &&
+		    srcst.st_mtime == dstst.st_mtime)
+			return (0);
+		if (S_ISDIR(srcst.st_mode) &&
+		    srcst.st_mode == dstst.st_mode)
+			return (0);
+	} else {
+		memset(&dstst, 0, sizeof dstst);
+	}
 
 #if HAVE_STATVFS
-		/* check for available space */
-		if (!S_ISDIR(srcst.st_mode) &&
-		    srcst.st_size > dstst.st_size && statvfs(dstdir, &st) == 0 &&
-		    (off_t)(st.f_bavail * st.f_bsize) < srcst.st_size - dstst.st_size)
-			continue;
+	/* check for available space */
+	if (!S_ISDIR(srcst.st_mode) &&
+	    srcst.st_size > dstst.st_size && statvfs(dstdir, &st) == 0 &&
+	    (off_t)(st.f_bavail * st.f_bsize) < srcst.st_size - dstst.st_size) {
+		errno = EAGAIN;
+		return (-1);
+	}
 #endif
 
-		/* create task */
-		tsdfx_copy_new(srcpath, dstpath);
-	}
+	/* create task */
+	tsdfx_copy_new(srcpath, dstpath);
 	return (0);
 }
 
@@ -503,6 +473,7 @@ tsdfx_copy_sched(void)
 int
 tsdfx_copy_init(void)
 {
+	char str[64];
 	int i;
 
 	if (tsdfx_copier == NULL &&
@@ -522,7 +493,9 @@ tsdfx_copy_init(void)
 			snprintf(tsdfx_queueinfo[i].max_size_str,
 			    sizeof tsdfx_queueinfo[i].max_size_str,
 			    "%zu", tsdfx_queueinfo[i].max_size);
-		tsdfx_copy_queues[i] = tsd_tqueue_create("tsdfx copier",
+		snprintf(str, sizeof str, "tsdfx copier (size <= %zu)",
+		    tsdfx_queueinfo[i].max_size);
+		tsdfx_copy_queues[i] = tsd_tqueue_create(str,
 		    tsdfx_queueinfo[i].max_tasks);
 		if (tsdfx_copy_queues[i] == NULL) {
 			while (i--) {

@@ -30,9 +30,10 @@
 #ifndef TSDFX_MAP_H_INCLUDED
 #define TSDFX_MAP_H_INCLUDED
 
-struct map;
+struct tsdfx_map;
 
 int tsdfx_map_reload(const char *);
+int tsdfx_map_process(struct tsdfx_map *, const char *);
 int tsdfx_map_sched(void);
 int tsdfx_map_exit(void);
 
