@@ -1,7 +1,7 @@
 #!/bin/sh
 
 md5sum() {
-	openssl md5 -r "$@"
+	openssl md5 -r "$@" | cut -d' ' -f1
 }
 
 x() {
@@ -33,6 +33,8 @@ fail() {
 
 setup_test() {
 	set -e
+
+	source="@abs_top_srcdir@"
 
 	tstdir="@abs_builddir@/t$$"
 	logfile="${tstdir}/log"
