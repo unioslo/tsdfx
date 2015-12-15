@@ -93,28 +93,53 @@ DAEMON_ARGS=
 # based distributions.
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
 
-case "$1" in
-    start)
+start() {
 	log_daemon_msg "Starting $DESC" "$NAME"
 	start_daemon -p $PIDFILE $DAEMON $DAEMON_ARGS
 	log_end_msg $?
-	;;
-    stop)
+}
+
+stop() {
 	log_daemon_msg "Stopping $DESC" "$NAME"
 	killproc -p $PIDFILE $DAEMON
 	log_end_msg $?
-	;;
-    reload)
+}
+
+reload() {
 	log_daemon_msg "Reloading $DESC" "$NAME"
 	killproc -p $PIDFILE $DAEMON -HUP
 	log_end_msg $?
+}
+
+restart() {
+	stop
+	start
+}
+
+status() {
+	status_of_proc -p $PIDFILE $DAEMON "$NAME" && return 0 || return $?
+}
+
+case "$1" in
+    start)
+	start
+	;;
+    stop)
+	stop
+	;;
+    reload)
+	reload
 	;;
     force-reload|restart)
-	$0 stop
-	$0 start
+	restart
+	;;
+    condrestart)
+        if status > /dev/null; then
+            restart
+        fi
 	;;
     status)
-	status_of_proc -p $PIDFILE $DAEMON "$NAME" && exit 0 || exit $?
+	status
 	;;
     *)
 	echo "Usage: /etc/init.d/tsdfx {start|stop|restart|force-reload|status}"
