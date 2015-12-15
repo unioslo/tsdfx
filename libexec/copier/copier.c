@@ -439,7 +439,7 @@ tsdfx_log_complete(const struct copyfile *src, const struct copyfile *dst)
 	    (unsigned long)dst->tve.tv_usec / 1000);
 }
 
-/* log a interrupted transfer */
+/* log an interrupted transfer */
 void
 tsdfx_log_interrupted(const struct copyfile *src, const struct copyfile *dst)
 {
@@ -604,7 +604,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 	}
 	if (killed || (maxsize && (size_t)src->st.st_size > maxsize))
 		tsdfx_log_interrupted(src, dst);
-	else 
+	else
 		tsdfx_log_complete(src, dst);
 	copyfile_close(src);
 	copyfile_close(dst);
