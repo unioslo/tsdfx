@@ -96,14 +96,14 @@ tsdfx_exit(void)
 int
 tsdfx_run(const char *mapfile)
 {
-	void (*sighup)(int);
-	void (*sigint)(int);
-	void (*sigterm)(int);
+	void (*oldsighup)(int);
+	void (*oldsigint)(int);
+	void (*oldsigterm)(int);
 	int scan_running, copy_running;
 
-	sighup = signal(SIGHUP, signal_handler);
-	sigint = signal(SIGINT, signal_handler);
-	sigterm = signal(SIGTERM, signal_handler);
+	oldsighup = signal(SIGHUP, signal_handler);
+	oldsigint = signal(SIGINT, signal_handler);
+	oldsigterm = signal(SIGTERM, signal_handler);
 	while (!killed) {
 		/* check for sighup */
 		if (sighup) {
@@ -127,8 +127,8 @@ tsdfx_run(const char *mapfile)
 
 		usleep(100 * 1000);
 	}
-	signal(SIGTERM, sigterm);
-	signal(SIGINT, sigint);
-	signal(SIGHUP, sighup);
+	signal(SIGTERM, oldsigterm);
+	signal(SIGINT, oldsigint);
+	signal(SIGHUP, oldsighup);
 	return (killed);
 }
