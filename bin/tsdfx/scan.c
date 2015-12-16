@@ -398,6 +398,8 @@ tsdfx_scan_reset(struct tsd_task *t)
 
 /*
  * Read available data from a single task, validate it and start copiers.
+ * Returns < 0 on error, > 0 if any data was read and / or is pending, and
+ * 0 otherwise.
  */
 static int
 tsdfx_scan_slurp(struct tsd_task *t)
@@ -416,9 +418,9 @@ tsdfx_scan_slurp(struct tsd_task *t)
 
 		/* read and update pointers and counters */
 		if ((rlen = read(t->pout, buf, bufsz)) < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				break;
-			return (rlen);
+			if (errno != EAGAIN && errno != EWOULDBLOCK)
+				return (rlen);
+			rlen = 0;
 		}
 		VERBOSE("read %ld characters from child %ld",
 		    (long)rlen, (long)t->pid);
@@ -445,21 +447,23 @@ tsdfx_scan_slurp(struct tsd_task *t)
 	}
 
 	/*
-	 * After the above loop, q points to the first character of the
+	 * After the above loop, p points to the first character of the
 	 * first incomplete line, or the beginning of the buffer if it is
 	 * empty or does not contain at least one line.  If the amount of
 	 * data remaining exceeds the maximum length of a path name (not
 	 * including the newline, which is still missing), something is
 	 * wrong.  Otherwise, move what's left to the start of the buffer.
 	 */
-	if ((len = end - q) > PATH_MAX) {
+	if ((len = end - p) > PATH_MAX) {
 		errno = ENAMETOOLONG;
 		return (-1);
 	}
-	if (q > std->buf)
-		memmove(std->buf, q, std->buflen = len);
+	if (p > std->buf) {
+		memmove(std->buf, p, std->buflen = len);
+		VERBOSE("left over: [%.*s]", (int)std->buflen, std->buf);
+	}
 
-	return (len);
+	return (rlen + std->buflen);
 }
 
 /*
@@ -483,8 +487,7 @@ tsdfx_scan_poll(struct tsd_task *t)
 			if (tsdfx_scan_slurp(t) < 0)
 				if (tsdfx_scan_stop(t) == 0)
 					t->state = TASK_FAILED;
-		}
-		if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
+		} else if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
 			/* validate */
 			if (std->buflen > 0) {
 				WARNING("incomplete output from child %ld for %s",
