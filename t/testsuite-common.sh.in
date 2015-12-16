@@ -83,6 +83,8 @@ set_blocksize() {
 }
 
 run_daemon() {
+	echo "starting tsdfx with map:"
+	sed 's/^/| /' "${mapfile}"
 	echo "logging to ${logfile}"
 	x "${tsdfx}" -l "${logfile}" -m "${mapfile}" -1v
 }
