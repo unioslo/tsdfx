@@ -89,6 +89,7 @@ main(int argc, char *argv[])
 
 	logfile = mapfile = NULL;
 	pidfilename = PIDFILENAME;
+	pidfh = NULL;
 	while ((opt = getopt(argc, argv, "1C:hl:m:np:S:vV")) != -1)
 		switch (opt) {
 		case '1':
