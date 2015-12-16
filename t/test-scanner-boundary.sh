@@ -38,10 +38,10 @@ invalid=0
 while read fn ; do
 	if [ ! -f ${dstdir}${fn} ] ; then
 		notice "missing: ${fn}"
-		: $((missing++))
+		: missing=$((missing+1))
 	elif [ $(md5sum ${dstdir}${fn}) != $content_md5 ] ; then
 		notice "invalid contents: ${fn}"
-		: $((invalid++))
+		: missing=$((invalid+1))
 	fi
 done < ${list}
 
