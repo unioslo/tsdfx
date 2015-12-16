@@ -33,6 +33,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +77,7 @@ main(int argc, char *argv[])
 {
 	const char *logfile, *mapfile, *pidfilename;
 	struct tsd_pidfh *pidfh;
-	int opt;
+	int killed, opt;
 	pid_t pid;
 
 #if HAVE_SETPROCTITLE_INIT
@@ -164,7 +165,7 @@ main(int argc, char *argv[])
 		NOTICE("tsdfx daemonized");
 	}
 
-	tsdfx_run(mapfile);
+	killed = tsdfx_run(mapfile);
 
 	tsdfx_exit();
 
@@ -176,5 +177,7 @@ main(int argc, char *argv[])
 		pidfh = NULL;
 	}
 
+	if (killed > 0)
+		raise(killed);
 	exit(0);
 }

@@ -93,14 +93,17 @@ tsdfx_exit(void)
 	return (0);
 }
 
-void
+int
 tsdfx_run(const char *mapfile)
 {
+	void (*sighup)(int);
+	void (*sigint)(int);
+	void (*sigterm)(int);
 	int scan_running, copy_running;
 
-	signal(SIGHUP, signal_handler);
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
+	sighup = signal(SIGHUP, signal_handler);
+	sigint = signal(SIGINT, signal_handler);
+	sigterm = signal(SIGTERM, signal_handler);
 	while (!killed) {
 		/* check for sighup */
 		if (sighup) {
@@ -124,12 +127,8 @@ tsdfx_run(const char *mapfile)
 
 		usleep(100 * 1000);
 	}
-	signal(SIGTERM, SIG_DFL);
-	signal(SIGINT, SIG_DFL);
-	signal(SIGHUP, SIG_DFL);
-#if 0
-	/* this would prevent cleanup, needs to be done in main() */
-	if (killed)
-		raise(killed);
-#endif
+	signal(SIGTERM, sigterm);
+	signal(SIGINT, sigint);
+	signal(SIGHUP, sighup);
+	return (killed);
 }
