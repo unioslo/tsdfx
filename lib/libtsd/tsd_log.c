@@ -120,7 +120,8 @@ tsd_log(tsd_log_level_t level, const char *file, int line, const char *func,
 	serrno = errno;
 
 	va_start(ap, fmt);
-	vasprintf(&msgbuffer, fmt, ap);
+	if (vasprintf(&msgbuffer, fmt, ap) < 0)
+		msgbuffer = strdup(fmt);
 	va_end(ap);
 
 	if (tsd_log_file == NULL) {
