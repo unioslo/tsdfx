@@ -584,7 +584,8 @@ tsdfx_scan_init(void)
 	return (0);
 }
 
-int tsdfx_scan_exit(void)
+int
+tsdfx_scan_exit(void)
 {
 	struct tsd_task *t, *tn;
 
