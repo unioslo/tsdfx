@@ -77,7 +77,7 @@ main(int argc, char *argv[])
 {
 	const char *logfile, *mapfile, *pidfilename;
 	struct tsd_pidfh *pidfh;
-	int killed, opt;
+	int killed, nodaemon, opt;
 	pid_t pid;
 
 #if HAVE_SETPROCTITLE_INIT
@@ -90,13 +90,18 @@ main(int argc, char *argv[])
 	logfile = mapfile = NULL;
 	pidfilename = PIDFILENAME;
 	pidfh = NULL;
-	while ((opt = getopt(argc, argv, "1C:hl:m:np:S:vV")) != -1)
+	nodaemon = 0;
+	while ((opt = getopt(argc, argv, "1C:fhl:m:np:S:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
+			++nodaemon;
 			break;
 		case 'C':
 			tsdfx_copier = optarg;
+			break;
+		case 'f':
+			++nodaemon;
 			break;
 		case 'l':
 			logfile = optarg;
@@ -147,7 +152,7 @@ main(int argc, char *argv[])
 	if (tsdfx_init(mapfile) != 0)
 		exit(1);
 
-	if (!tsdfx_oneshot) {
+	if (!nodaemon) {
 		VERBOSE("creating pid file %s", pidfilename);
 		pid = 0;
 		pidfh = tsd_pidfile_open(pidfilename, 0644, &pid);
@@ -172,7 +177,7 @@ main(int argc, char *argv[])
 
 	tsd_log_exit();
 
-	if (!tsdfx_oneshot) {
+	if (!nodaemon) {
 		VERBOSE("removing pid file %s", pidfilename);
 		tsd_pidfile_remove(pidfh);
 		pidfh = NULL;
