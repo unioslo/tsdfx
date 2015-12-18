@@ -26,7 +26,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd January 20, 2015
+.Dd December 18, 2015
 .Dt TSDFX-SCANNER 8
 .Os
 .Sh NAME
@@ -35,7 +35,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl v
-.Op Fl l logname
+.Op Fl l logspec
 .Ar Pa path
 .Sh DESCRIPTION
 The
@@ -45,11 +45,31 @@ its contents.
 It is intended solely for internal use by the
 .Xr tsdfx 8
 utility.
+.Pp
+The following options are available:
+.Bl -tag -width Fl
+.It Fl l Ar logspec
+Log specification.
+This can be
+.Ar :stderr
+to log to standard error,
+.Ar :syslog
+to log to
+.Xr syslog 8 ,
+or a file name.
+.It Fl v
+Verbose mode: log a large amount of information about the inner
+workings of
+.Nm .
+.El
 .Sh SEE ALSO
-.Xr tsdfx 8
+.Xr tsdfx 8 ,
+.Xr tsdfx-copier 8
 .Sh AUTHORS
 The
 .Nm
 utility and this manual page were written by
 .An Dag-Erling Sm\(/orgrav Aq d.e.smorgrav@usit.uio.no
+and
+.An Petter Reinholdtsen Aq petter.reinholdtsen@usit.uio.no
 for the University of Oslo.

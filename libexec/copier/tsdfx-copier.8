@@ -26,7 +26,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd December 2, 2015
+.Dd December 18, 2015
 .Dt TSDFX-COPIER 8
 .Os
 .Sh NAME
@@ -35,10 +35,10 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl fnv
-.Op Fl l logname
+.Op Fl l logspec
 .Op Fl m maxsize
-.Ar Pa src
-.Ar Pa dst
+.Ar srcpath
+.Ar dstpath
 .Sh DESCRIPTION
 The
 .Nm
@@ -48,28 +48,37 @@ It is intended solely for internal use by the
 utility.
 .Pp
 If
-.Pa src
+.Pa srcpath
 is a directory,
-.Pa dst
+.Pa dstpath
 will be created as a directory with the same ownership.
 If
-.Pa src
+.Pa srcpath
 is a file, it will be copied to
-.Pa dst
+.Pa dstpath
 in its entirety unless
-.Pa dst
+.Pa dstpath
 already exists and has the same size, modification time and ownership
 as
-.Pa src .
+.Pa srcpath .
 .Pp
 The following options are available:
 .Bl -tag -width Fl
 .It Fl f
-Always copy
-.Pa src
+Forced mode: always copy
+.Pa srcpath
 to
-.Pa dst ,
+.Pa dstpath ,
 without checking their size, modification time and ownership.
+.It Fl l Ar logspec
+Log specification.
+This can be
+.Ar :stderr
+to log to standard error,
+.Ar :syslog
+to log to
+.Xr syslog 8 ,
+or a file name.
 .It Fl m Ar maxsize
 Stop copying if the size of the source file exceeds
 .Ar maxsize .
@@ -77,15 +86,21 @@ The exact amount of data
 .Nm
 copies before stopping may vary.
 .It Fl n
-Perform checks, but do not actually create or copy anything.
+Dry-run mode: perform checks, but do not actually create or copy
+anything.
 .It Fl v
-Be verbose.
+Verbose mode: log a large amount of information about the inner
+workings of
+.Nm .
 .El
 .Sh SEE ALSO
-.Xr tsdfx 8
+.Xr tsdfx 8 ,
+.Xr tsdfx-scanner 8
 .Sh AUTHORS
 The
 .Nm
 utility and this manual page were written by
 .An Dag-Erling Sm\(/orgrav Aq Mt d.e.smorgrav@usit.uio.no
+and
+.An Petter Reinholdtsen Aq petter.reinholdtsen@usit.uio.no
 for the University of Oslo.
