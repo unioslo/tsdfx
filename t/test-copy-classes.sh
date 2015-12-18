@@ -24,7 +24,7 @@ while read name size ; do
 	    of="${srcdir}/${name}" > /dev/null 2>&1
 done < "${casefile}"
 
-run_daemon
+run_daemon -1
 
 while read name size ; do
 	if [ ! -e "${dstdir}/${name}" ] ; then

@@ -23,7 +23,7 @@ set_blocksize
 
 write_holy_file "${srcdir}/random-with-holes" &
 
-run_daemon
+run_daemon -1
 
 hmd5src="$(cd "${srcdir}"; md5sum "random-with-holes")"
 hmd5dst="$(cd "${dstdir}"; md5sum "random-with-holes")"

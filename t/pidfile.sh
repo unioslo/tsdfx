@@ -4,17 +4,11 @@
 
 setup_test
 
-pidfile="${tstdir}/tsdfx.pid"
-
-# Not using run_daemon() to be able to set pidfile and drop one-off run.
-
-echo "logging to ${logfile}"
-x "${tsdfx}" -l "${logfile}" -p "${pidfile}" -m "${mapfile}" -v &
-pid=$!
+run_daemon
 
 # wait a while for the pid file to show up
 limit=20
-while [ ! -f "${pidfile}" ] && [ 0 -ne "$limit" ] ; do
+while [ ! -f "${pidfile}" -a 0 -ne "$limit" ] ; do
     sleep 1
     limit=$(($limit - 1))
 done

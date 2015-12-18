@@ -19,7 +19,7 @@ chmod 644 "${srcdir}/baddir2"
 
 echo test2 > "${srcdir}/test2"
 
-run_daemon
+run_daemon -1
 
 # Not expected to copy baddir1/test and baddir2/test, behind an
 # inaccessible directory

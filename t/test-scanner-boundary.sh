@@ -31,7 +31,7 @@ while read fn ; do
 	echo $content >${srcdir}${fn}
 done < ${list}
 
-run_daemon
+run_daemon -1
 
 missing=0
 invalid=0
