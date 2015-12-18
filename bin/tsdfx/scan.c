@@ -474,21 +474,39 @@ tsdfx_scan_poll(struct tsd_task *t)
 {
 	struct tsdfx_scan_task_data *std = t->ud;
 	struct pollfd pfd;
-	int serrno;
+	int ret, serrno;
 
-	/* see if there's any output waiting for us */
+	/*
+	 * See if there's any output waiting for us.
+	 *
+	 * Linux and FreeBSD behave differently here.  Linux will return
+	 * POLLIN until the other end of the pipe is closed (i.e. the scan
+	 * child has terminated).  It will then return POLLIN|POLLHUP
+	 * until we've read all the data that was buffered in the kernel.
+	 * After that, it will return POLLHUP alone.  FreeBSD on the other
+	 * hand may continue to return POLLIN|POLLHUP even after we've
+	 * read everything.  Hence, the termination condition can't be
+	 * "POLLHUP alone" but must be "either POLLHUP alone *or*
+	 * POLLIN|POLLHUP and read() == 0".
+	 */
 	pfd.fd = t->pout;
 	pfd.events = POLLIN;
 	pfd.revents = 0;
 	switch (poll(&pfd, 1, 0)) {
 	case 1:
-		/* yes, let's get it */
 		if (pfd.revents & POLLIN) {
-			if (tsdfx_scan_slurp(t) < 0)
+			/* yes, let's get it */
+			if ((ret = tsdfx_scan_slurp(t)) < 0) {
+				/* error in slurp(), kill task and bail */
 				if (tsdfx_scan_stop(t) == 0)
 					t->state = TASK_FAILED;
-		} else if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
-			/* validate */
+				break;
+			}
+			if (ret > 0)
+				break;
+		}
+		if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
+			/* we're done */
 			if (std->buflen > 0) {
 				WARNING("incomplete output from child %ld for %s",
 				    (long)t->pid, std->path);
