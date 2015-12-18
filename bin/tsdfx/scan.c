@@ -397,6 +397,29 @@ tsdfx_scan_reset(struct tsd_task *t)
 }
 
 /*
+ * Mark a scan task for immediate execution.
+ */
+int
+tsdfx_scan_rush(struct tsd_task *t)
+{
+	struct tsdfx_scan_task_data *std = t->ud;
+	time_t now;
+
+	VERBOSE("%s", std->path);
+	switch (t->state) {
+	case TASK_IDLE:
+		time(&now);
+		if (std->nextrun > now)
+			std->nextrun = now;
+		/* fall through */
+	case TASK_RUNNING:
+		return (0);
+	default:
+		return (-1);
+	}
+}
+
+/*
  * Read available data from a single task, validate it and start copiers.
  * Returns < 0 on error, > 0 if any data was read and / or is pending, and
  * 0 otherwise.

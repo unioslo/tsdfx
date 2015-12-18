@@ -282,6 +282,7 @@ tsdfx_map_reload(const char *fn)
 			/* unchanged task */
 			newmap[j]->task = map[i]->task;
 			map[i]->task = NULL;
+			tsdfx_scan_rush(newmap[j]->task);
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
