@@ -36,13 +36,14 @@ notice "map reloaded"
 
 # Wait for the copy tasks to complete
 timeout=6
-while [ ! -f "${dstdir}/test1" -o ! -f "${dstdir}/test2" ] ; do
+while ! [ -s "${dstdir}/test1" -a -s "${dstdir}/test2" ] ; do
 	[ $((timeout-=1)) -gt 0 ] ||
 		fail "timed out waiting for copy"
 	sleep 1
 done
 notice "copy complete"
 
+# Compare source and destination
 for good in test1 test2 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then
 		fail "missing: ${dstdir}/${good}"
