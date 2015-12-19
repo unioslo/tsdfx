@@ -6,28 +6,26 @@ setup_test
 
 run_daemon
 
-# wait a while for the pid file to show up
+# wait for the pid file to appear
 limit=20
-while [ ! -f "${pidfile}" -a 0 -ne "$limit" ] ; do
-    sleep 1
-    limit=$(($limit - 1))
+while [ ! -s "${pidfile}" ] ; do
+	[ $((elapsed+=1)) -lt $limit ] ||
+		fail "timed out waiting for pid file to appear"
+	sleep 1
 done
+notice "pid file appeared after $elapsed seconds"
 
-if [ -f "${pidfile}" ]; then
-    waittime=$((20 - $limit))
-    echo "success: found pid file ${pidfile} (took $waittime seconds)"
-else
-    fail "missing pid file ${pidfile} (gave up after 20 seconds)"
-fi
-
+# kill tsdfx
 kill "$(cat ${pidfile})"
+notice "killed daemon"
 
-sleep 2
-
-if [ ! -f "${pidfile}" ]; then
-    echo "success: pid file ${pidfile} no longer present"
-else
-    fail "found obsolete pid file ${pidfile}"
-fi
+# wait for the pid file to vanish
+limit=20
+while [ -s "${pidfile}" ] ; do
+	[ $((elapsed+=1)) -lt $limit ] ||
+		fail "timed out waiting for pid file to vanish"
+	sleep 1
+done
+notice "pid file vanished after $elapsed seconds"
 
 cleanup_test
