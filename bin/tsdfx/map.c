@@ -43,6 +43,7 @@
 #include <bsd/stdlib.h>
 #endif
 
+#include <tsd/assert.h>
 #include <tsd/log.h>
 #include <tsd/strutil.h>
 #include <tsd/task.h>
@@ -280,11 +281,15 @@ tsdfx_map_reload(const char *fn)
 		    strcmp(map[i]->name, newmap[j]->name) : -1;
 		if (res == 0) {
 			/* unchanged task */
-			newmap[j]->task = map[i]->task;
-			map[i]->task = NULL;
+			map_delete(newmap[j]);
+			newmap[j] = map[i];
+			map[i] = NULL;
+			tsdfx_scan_rush(newmap[j]->task);
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
+			map_delete(map[i]);
+			map[i] = NULL;
 			++i;
 		} else if (res > 0) {
 			/* new task */
@@ -293,9 +298,9 @@ tsdfx_map_reload(const char *fn)
 			/* unreachable */
 		}
 	}
-	/* delete the old map and any tasks that weren't copied over */
+	/* the old map is now empty */
 	for (i = 0; i < map_len; ++i)
-		map_delete(map[i]);
+		ASSERT(map[i] == NULL);
 	free(map);
 	map = newmap;
 	map_sz = newmap_sz;

@@ -20,7 +20,7 @@ dd bs=1k count=${randomsize} \
 
 md5start=$(cd ${srcdir}; md5sum ${randomsize}krandom)
 
-run_daemon
+run_daemon -1
 
 for good in test1 test2 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then

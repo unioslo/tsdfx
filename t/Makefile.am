@@ -1,16 +1,18 @@
 EXTRA_DIST = \
-	pidfile.sh \
 	test-copy-classes.sh \
 	test-file-hole.sh \
 	test-inaccessible-dir.sh \
+	test-map-corruption.sh \
+	test-pidfile.sh \
 	test-scanner-boundary.sh \
 	test-simplecopy.sh \
 	testsuite-common.sh
 
 TESTS = \
-	pidfile.sh \
 	test-copy-classes.sh \
 	test-file-hole.sh \
 	test-inaccessible-dir.sh \
+	test-map-corruption.sh \
+	test-pidfile.sh \
 	test-scanner-boundary.sh \
 	test-simplecopy.sh

@@ -15,6 +15,7 @@ notice() {
 
 fail() {
 	(
+		[ -f "${pidfile}" ] && kill $(cat "${pidfile}")
 		echo "FAIL $@"
 		echo "last lines in log file:"
 		echo
@@ -39,6 +40,7 @@ setup_test() {
 	tstdir="@abs_builddir@/t$$"
 	logfile="${tstdir}/log"
 	mapfile="${tstdir}/map"
+	pidfile="${tstdir}/pid"
 	srcdir="${tstdir}/src"
 	dstdir="${tstdir}/dst"
 
@@ -86,10 +88,11 @@ run_daemon() {
 	echo "starting tsdfx with map:"
 	sed 's/^/| /' "${mapfile}"
 	echo "logging to ${logfile}"
-	x "${tsdfx}" -l "${logfile}" -m "${mapfile}" -1v
+	x "${tsdfx}" -v -l "${logfile}" -m "${mapfile}" -p "${pidfile}" "$@"
 }
 
 cleanup_test() {
+	[ -f "${pidfile}" ] && kill $(cat "${pidfile}")
 	chmod -R u+rwX "${tstdir}"
 	rm -rf "${tstdir}"
 }
