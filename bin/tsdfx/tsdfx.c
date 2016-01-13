@@ -78,6 +78,8 @@ tsdfx_init(const char *mapfile)
 		return (-1);
 	if (tsdfx_scan_init() != 0)
 		return (-1);
+	if (tsdfx_map_init() != 0)
+		return (-1);
 	if (tsdfx_map_reload(mapfile) != 0)
 		return (-1);
 	return (0);

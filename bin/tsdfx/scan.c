@@ -68,6 +68,12 @@
 unsigned int tsdfx_scan_interval;
 unsigned int tsdfx_reset_interval;
 
+struct tsdfx_scan_task_databuf {
+	char *buf;
+	size_t bufsz;
+	int buflen;
+};
+
 /*
  * Private data for a scan task
  */
@@ -82,9 +88,10 @@ struct tsdfx_scan_task_data {
 	int interval;
 
 	/* scanned files */
-	char *buf;
-	size_t bufsz;
-	int buflen;
+	struct tsdfx_scan_task_databuf stdin;
+
+	/* error messages */
+	struct tsdfx_scan_task_databuf stderr;
 };
 
 /*
@@ -161,7 +168,7 @@ tsdfx_scan_result(const struct tsd_task *t)
 
 	if (t->state != TASK_FINISHED)
 		return (NULL);
-	return (std->buf);
+	return (std->stdin.buf);
 }
 
 /*
@@ -231,17 +238,23 @@ tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 	if (strlcpy(std->path, path, sizeof std->path) >= sizeof std->path)
 		goto fail;
 	std->st = st;
-	std->bufsz = SCAN_BUFFER_SIZE;
-	std->buflen = 0;
-	if ((std->buf = malloc(std->bufsz)) == NULL)
+	std->stdin.bufsz = SCAN_BUFFER_SIZE;
+	std->stdin.buflen = 0;
+	if ((std->stdin.buf = malloc(std->stdin.bufsz)) == NULL)
 		goto fail;
-	std->buf[0] = '\0';
+	std->stdin.buf[0] = '\0';
+	std->stderr.bufsz = SCAN_BUFFER_SIZE;
+	std->stderr.buflen = 0;
+	if ((std->stderr.buf = malloc(std->stderr.bufsz)) == NULL)
+		goto fail;
+	std->stderr.buf[0] = '\0';
 	std->interval = tsdfx_scan_interval;
 
 	/* create task and set credentials */
 	if ((t = tsd_task_create(name, tsdfx_scan_child, std)) == NULL)
 		goto fail;
-	t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE;
+	//t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE;
+	t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE | TASK_STDERR_PIPE;
 	if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
 		goto fail;
 	if (tsdfx_scan_add(t) != 0)
@@ -250,9 +263,16 @@ tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 fail:
 	serrno = errno;
 	if (std != NULL) {
-		if (std->buf != NULL)
-			free(std->buf);
+		if (std->stderr.buf != NULL) {
+			free(std->stderr.buf);
+			std->stderr.buf = NULL;
+		}
+		if (std->stdin.buf != NULL) {
+			free(std->stdin.buf);
+			std->stdin.buf = NULL;
+		}
 		free(std);
+		std = NULL;
 	}
 	if (t != NULL)
 		tsd_task_destroy(t);
@@ -267,7 +287,7 @@ static void
 tsdfx_scan_child(void *ud)
 {
 	struct tsdfx_scan_task_data *std = ud;
-	const char *argv[6];
+	const char *argv[8];
 	int argc;
 
 	/* check credentials */
@@ -289,6 +309,10 @@ tsdfx_scan_child(void *ud)
 		argv[argc++] = "-v";
 	argv[argc++] = "-l";
 	argv[argc++] = tsd_log_getname();
+	/* Always log user errors to stderr, we pick up the log
+	   messages and pass them on to the final destination. */
+	argv[argc++] = "-l";
+	argv[argc++] = ":usererror=stderr";
 	argv[argc++] = ".";
 	argv[argc] = NULL;
 	/* XXX should clean the environment */
@@ -347,7 +371,8 @@ tsdfx_scan_delete(struct tsd_task *t)
 	tsd_task_destroy(t);
 	VERBOSE("%d jobs, %d running", tsdfx_scan_tasks->ntasks,
 	    tsdfx_scan_tasks->nrunning);
-	free(std->buf);
+	free(std->stderr.buf);
+	free(std->stdin.buf);
 	free(std);
 }
 
@@ -369,8 +394,10 @@ tsdfx_scan_reset(struct tsd_task *t)
 	time(&std->lastran);
 
 	/* clear the buffer */
-	std->buf[0] = '\0';
-	std->buflen = 0;
+	std->stdin.buf[0] = '\0';
+	std->stdin.buflen = 0;
+	std->stderr.buf[0] = '\0';
+	std->stderr.buflen = 0;
 
 	/* check that it's still there */
 	if (stat(std->path, &st) != 0) {
@@ -439,8 +466,8 @@ tsdfx_scan_slurp(struct tsd_task *t)
 	len = 0;
 	do {
 		/* where do we start, and how much room do we have? */
-		buf = std->buf + std->buflen;
-		bufsz = std->bufsz - std->buflen;
+		buf = std->stdin.buf + std->stdin.buflen;
+		bufsz = std->stdin.bufsz - std->stdin.buflen;
 
 		/* read and update pointers and counters */
 		if ((rlen = read(t->pout, buf, bufsz)) < 0) {
@@ -450,14 +477,14 @@ tsdfx_scan_slurp(struct tsd_task *t)
 		}
 		VERBOSE("read %ld characters from child %ld",
 		    (long)rlen, (long)t->pid);
-		std->buflen += rlen;
-		std->buf[std->buflen] = '\0';
+		std->stdin.buflen += rlen;
+		std->stdin.buf[std->stdin.buflen] = '\0';
 		len += rlen;
 	} while (rlen > 0 && (size_t)len < bufsz);
-	end = std->buf + std->buflen;
+	end = std->stdin.buf + std->stdin.buflen;
 
 	/* process output line by line */
-	for (p = q = std->buf; p < end; p = q) {
+	for (p = q = std->stdin.buf; p < end; p = q) {
 		for (q = p; q < end && *q != '\n'; ++q)
 			/* nothing */ ;
 		if (q == end)
@@ -484,12 +511,65 @@ tsdfx_scan_slurp(struct tsd_task *t)
 		errno = ENAMETOOLONG;
 		return (-1);
 	}
-	if (p > std->buf) {
-		memmove(std->buf, p, std->buflen = len);
-		VERBOSE("left over: [%.*s]", (int)std->buflen, std->buf);
+	if (p > std->stdin.buf) {
+		memmove(std->stdin.buf, p, std->stdin.buflen = len);
+		VERBOSE("left over: [%.*s]", (int)std->stdin.buflen, std->stdin.buf);
 	}
 
-	return (rlen + std->buflen);
+	return (rlen + std->stdin.buflen);
+}
+
+static int
+tsdfx_scan_slurp_stderr(struct tsd_task *t)
+{
+	struct tsdfx_scan_task_data *std = t->ud;
+	size_t bufsz, len;
+	ssize_t rlen;
+	char *buf, *end, *p, *q;
+
+	WARNING("Reading from stderr");
+	/* read as much as we can in the space we have left */
+	len = 0;
+	do {
+		/* where do we start, and how much room do we have? */
+		buf = std->stderr.buf + std->stderr.buflen;
+		bufsz = std->stderr.bufsz - std->stderr.buflen;
+
+		/* read and update pointers and counters */
+		if ((rlen = read(t->perr, buf, bufsz)) < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				break;
+			return (rlen);
+		}
+		VERBOSE("read %ld stderr characters from child %ld",
+		    (long)rlen, (long)t->pid);
+		std->stderr.buflen += rlen;
+		std->stderr.buf[std->stderr.buflen] = '\0';
+		len += rlen;
+	} while (rlen > 0 && (size_t)len < bufsz);
+	end = std->stderr.buf + std->stderr.buflen;
+
+	/* process output line by line */
+	for (p = q = std->stderr.buf; p < end; p = q) {
+		for (q = p; q < end && *q != '\n'; ++q)
+			/* nothing */ ;
+		if (q == end)
+			break;
+		*q++ = '\0';
+		tsdfx_map_log(std->map, p);
+		ERROR("%s", p);
+	}
+
+	/*
+	 * After the above loop, q points to the first character of
+	 * the first incomplete line, or the beginning of the buffer
+	 * if it is empty or does not contain at least one line.  Move
+	 * what's left to the start of the buffer.
+	 */
+	if (q > std->stderr.buf)
+		memmove(std->stderr.buf, q, std->stderr.buflen = len);
+
+	return (len);
 }
 
 /*
@@ -498,8 +578,9 @@ tsdfx_scan_slurp(struct tsd_task *t)
 static int
 tsdfx_scan_poll(struct tsd_task *t)
 {
+	int events;
 	struct tsdfx_scan_task_data *std = t->ud;
-	struct pollfd pfd;
+	struct pollfd pfd[2];
 	int ret, serrno;
 
 	/*
@@ -515,12 +596,17 @@ tsdfx_scan_poll(struct tsd_task *t)
 	 * "POLLHUP alone" but must be "either POLLHUP alone *or*
 	 * POLLIN|POLLHUP and read() == 0".
 	 */
-	pfd.fd = t->pout;
-	pfd.events = POLLIN;
-	pfd.revents = 0;
-	switch (poll(&pfd, 1, 0)) {
+	pfd[0].fd = t->pout;
+	pfd[0].events = POLLIN;
+	pfd[0].revents = 0;
+	pfd[1].fd = t->perr;
+	pfd[1].events = POLLIN;
+	pfd[1].revents = 0;
+	events = poll(pfd, (sizeof(pfd)/sizeof(pfd[0])), 0);
+	switch (events) {
 	case 1:
-		if (pfd.revents & POLLIN) {
+	case 2:
+		if (pfd[0].revents & POLLIN) {
 			/* yes, let's get it */
 			if ((ret = tsdfx_scan_slurp(t)) < 0) {
 				/* error in slurp(), kill task and bail */
@@ -531,9 +617,20 @@ tsdfx_scan_poll(struct tsd_task *t)
 			if (ret > 0)
 				break;
 		}
-		if (pfd.revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
+		if (pfd[1].revents & POLLIN) {
+			/* yes, let's get it */
+			if ((ret = tsdfx_scan_slurp_stderr(t)) < 0) {
+				/* error in slurp(), kill task and bail */
+				if (tsdfx_scan_stop(t) == 0)
+					t->state = TASK_FAILED;
+				break;
+			}
+			if (ret > 0)
+				break;
+		}
+		if (pfd[0].revents & POLLHUP && tsdfx_scan_stop(t) == 0) {
 			/* we're done */
-			if (std->buflen > 0) {
+			if (std->stdin.buflen > 0) {
 				WARNING("incomplete output from child %ld for %s",
 				    (long)t->pid, std->path);
 				t->state = TASK_FAILED;
@@ -549,7 +646,8 @@ tsdfx_scan_poll(struct tsd_task *t)
 		/* oops */
 		serrno = errno;
 		tsdfx_scan_stop(t);
-		VERBOSE("%s: %s", std->path, strerror(serrno));
+		VERBOSE("did not expect %d from poll() %s: %s",
+			events, std->path, strerror(serrno));
 		errno = serrno;
 		t->state = TASK_FAILED;
 		break;

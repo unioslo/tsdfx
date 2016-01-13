@@ -44,6 +44,7 @@
 
 int tsd_log_quiet = 0;
 int tsd_log_verbose = 0;
+int tsd_log_usererror_to_stderr = 0;
 
 static char *tsd_log_filename;
 static FILE *tsd_log_file;
@@ -61,6 +62,7 @@ tsd_log_level2syslog(tsd_log_level_t level)
 	case TSD_LOG_LEVEL_WARNING:
 		return (LOG_WARNING);
 	case TSD_LOG_LEVEL_ERROR:
+	case TSD_LOG_LEVEL_USERERROR:
 		return (LOG_ERR);
 	}
 	return (0);
@@ -78,6 +80,7 @@ tsd_log_level2str(tsd_log_level_t level)
 	case TSD_LOG_LEVEL_WARNING:
 		return ("warning");
 	case TSD_LOG_LEVEL_ERROR:
+	case TSD_LOG_LEVEL_USERERROR:
 		return ("error");
 	}
 	return ("unknown");
@@ -127,18 +130,28 @@ tsd_log(tsd_log_level_t level, const char *file, int line, const char *func,
 	if (tsd_log_file == NULL) {
 		syslog(tsd_log_level2syslog(level), "%s:%d %s() %s",
 		    file, line, func, msgbuffer);
-	} else {
-		now = time(NULL);
-		strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
-		    gmtime(&now));
-		fprintf(tsd_log_file, "%s [%d] %s: %s:%d %s() %s\n", timestr,
-		    (int)getpid(), tsd_log_level2str(level),
-		    file, line, func, msgbuffer);
 	}
+	now = time(NULL);
+	strftime(timestr, sizeof timestr, "%Y-%m-%d %H:%M:%S UTC",
+		 gmtime(&now));
+#define LOGFMT "%s [%d] %s: %s:%d %s() %s\n"
+	if (tsd_log_file != NULL)
+		fprintf(tsd_log_file, LOGFMT, timestr, (int)getpid(),
+			tsd_log_level2str(level), file, line, func, msgbuffer);
+	if (level == TSD_LOG_LEVEL_USERERROR && tsd_log_file != stderr)
+		fprintf(stderr, LOGFMT, timestr, (int)getpid(),
+			tsd_log_level2str(level), file, line, func, msgbuffer);
 
 	free(msgbuffer);
 	msgbuffer = NULL;
 	errno = serrno;
+}
+
+void
+tsd_log_usererror2stderr(const int usererror2stderr)
+{
+
+	tsd_log_usererror_to_stderr = usererror2stderr;
 }
 
 int

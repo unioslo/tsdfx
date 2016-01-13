@@ -41,4 +41,10 @@ if [ "$md5start" != "$md5end" ]; then
     fail "${randomsize}krandom file changed from source to destination"
 fi
 
+# Make sure failed copy of "test (2).txt" and others are reported as
+# errors in destination directory.
+if [ ! -e "${dstdir}/tsdfx-error.log" ] ; then
+    fail "missing ${dstdir}/tsdfx-error.log"
+fi
+
 cleanup_test
