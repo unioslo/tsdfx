@@ -29,7 +29,7 @@ kill -HUP $(cat "${pidfile}")
 timeout=6
 while ! grep -q 'tsdfx_map_reload.*keeping' "${logfile}" ; do
 	[ $((timeout-=1)) -gt 0 ] ||
-		fail "timed out waiting for first scan"
+		fail "timed out waiting for map reload"
 	sleep 1
 done
 notice "map reloaded"
