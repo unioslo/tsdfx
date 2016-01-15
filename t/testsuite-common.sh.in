@@ -94,11 +94,16 @@ run_daemon() {
 cleanup_test() {
 	timeout=10
 	elapsed=0
-	while [ -f "${pidfile}" ] && kill $(cat "${pidfile}") ; do
-		[ $((elapsed+=1)) -le "${timeout}" ] ||
-			fail "timed out waiting for tsdfx to stop"
-		sleep 1
-	done
+	if [ -f "${pidfile}" ] ; then
+		pid=$(cat "${pidfile}")
+		kill "${pid}" >/dev/null 2>&1
+		while kill -0 "${pid}" >/dev/null 2>&1 ; do
+			[ $((elapsed+=1)) -le "${timeout}" ] ||
+				fail "timed out waiting for tsdfx to stop"
+			sleep 1
+		done
+		notice "tsdfx stopped after ${elapsed} seconds"
+	fi
 	chmod -R u+rwX "${tstdir}"
 	rm -rf "${tstdir}"
 }
