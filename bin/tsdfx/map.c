@@ -337,21 +337,7 @@ tsdfx_map_sched(void)
 	int i;
 
 	for (i = 0; i < map_len; ++i) {
-		switch (tsdfx_scan_state(map[i]->task)) {
-		case TASK_FINISHED:
-			tsdfx_scan_reset(map[i]->task);
-			break;
-		case TASK_INVALID:
-			/* XXX try to reset at regular intervals */
-			break;
-		case TASK_DEAD:
-		case TASK_FAILED:
-			/* just restart it */
-			tsdfx_scan_reset(map[i]->task);
-			break;
-		default:
-			break;
-		}
+		/* nothing to do */
 	}
 	return (map_len);
 }
