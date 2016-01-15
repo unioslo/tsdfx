@@ -63,8 +63,9 @@
 
 #define SCAN_BUFFER_SIZE	16384
 
-/* XXX this needs to be configurable */
-#define SCAN_INTERVAL		300
+#define DEFAULT_SCAN_INTERVAL	300
+
+unsigned int tsdfx_scan_interval;
 
 /*
  * Private data for a scan task
@@ -234,7 +235,7 @@ tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 	if ((std->buf = malloc(std->bufsz)) == NULL)
 		goto fail;
 	std->buf[0] = '\0';
-	std->interval = SCAN_INTERVAL; /* XXX should be tunable */
+	std->interval = tsdfx_scan_interval;
 
 	/* create task and set credentials */
 	if ((t = tsd_task_create(name, tsdfx_scan_child, std)) == NULL)
@@ -625,6 +626,8 @@ tsdfx_scan_init(void)
 		return (-1);
 	if ((tsdfx_scan_tasks = tsd_tset_create("tsdfx scanner")) == NULL)
 		return (-1);
+	if (tsdfx_scan_interval == 0)
+		tsdfx_scan_interval = DEFAULT_SCAN_INTERVAL;
 	return (0);
 }
 
