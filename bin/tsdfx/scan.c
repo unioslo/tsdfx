@@ -66,6 +66,7 @@
 #define DEFAULT_SCAN_INTERVAL	300
 
 unsigned int tsdfx_scan_interval;
+unsigned int tsdfx_reset_interval;
 
 /*
  * Private data for a scan task
@@ -365,6 +366,7 @@ tsdfx_scan_reset(struct tsd_task *t)
 	if (t->state == TASK_IDLE)
 		return (0);
 	tsd_task_reset(t);
+	time(&std->lastran);
 
 	/* clear the buffer */
 	std->buf[0] = '\0';
@@ -392,7 +394,7 @@ tsdfx_scan_reset(struct tsd_task *t)
 	std->st = st;
 
 	/* reschedule */
-	std->nextrun = time(&std->lastran) + std->interval;
+	std->nextrun = std->lastran + std->interval;
 
 	return (0);
 }
@@ -592,11 +594,19 @@ tsdfx_scan_sched(void)
 			/* see if there is any output waiting */
 			tsdfx_scan_poll(t);
 			break;
-		case TASK_STOPPED:
-		case TASK_DEAD:
 		case TASK_FINISHED:
+			tsd_task_reset(t);
+			break;
+		case TASK_DEAD:
 		case TASK_FAILED:
-			// tsd_task_reset(t);
+		case TASK_INVALID:
+			if (now >= std->lastran + tsdfx_reset_interval)
+				tsd_task_reset(t);
+			break;
+		case TASK_STOPPED:
+			/* shouldn't happen */
+			ERROR("scan task in TASK_STOPPED state");
+			tsd_task_reset(t);
 			break;
 		default:
 			/* unreachable */
@@ -628,6 +638,13 @@ tsdfx_scan_init(void)
 		return (-1);
 	if (tsdfx_scan_interval == 0)
 		tsdfx_scan_interval = DEFAULT_SCAN_INTERVAL;
+	if (tsdfx_reset_interval == 0)
+		tsdfx_reset_interval = tsdfx_scan_interval * 3;
+	if (tsdfx_reset_interval < tsdfx_scan_interval) {
+		WARNING("reset interval inferior to scan interval");
+		tsdfx_reset_interval = tsdfx_scan_interval * 3;
+		WARNING("setting reset interval to %u", tsdfx_reset_interval);
+	}
 	return (0);
 }
 

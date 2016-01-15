@@ -47,5 +47,6 @@ extern const char *tsdfx_scanner;
 extern const char *tsdfx_copier;
 
 extern unsigned int tsdfx_scan_interval;
+extern unsigned int tsdfx_reset_interval;
 
 #endif
