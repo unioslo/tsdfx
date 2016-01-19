@@ -305,8 +305,10 @@ tsdfx_copy_child(void *ud)
 		argv[argc++] = "-v";
 	argv[argc++] = "-l";
 	argv[argc++] = tsd_log_getname();
-	/* Always log user errors to stderr, we pick up the log
-	   messages and pass them on to the final destination. */
+	/*
+	 * Always log user errors to stderr.  We pick up the log messages
+	 * and pass them on to the final destination.
+	 */
 	argv[argc++] = "-l";
 	argv[argc++] = ":usererror=stderr";
 	if (ctd->maxsize != NULL) {
@@ -316,6 +318,8 @@ tsdfx_copy_child(void *ud)
 	argv[argc++] = ctd->src;
 	argv[argc++] = ctd->dst;
 	argv[argc] = NULL;
+	ASSERTF((size_t)argc < sizeof argv / sizeof argv[0],
+	    "argv overflowed: %d > %z", argc, sizeof argv / sizeof argv[0]);
 	/* XXX should clean the environment */
 	execv(tsdfx_copier, (char *const *)argv);
 	ERROR("failed to execute copier process");

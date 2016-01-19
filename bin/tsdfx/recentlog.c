@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015 Universitetet i Oslo
+ * Copyright (c) 2016 The University of Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,12 +50,14 @@ struct tsdfx_recentlog {
 int
 tsdfx_recentlog_init(void)
 {
+
 	return (0);
 }
 
 int
 tsdfx_recentlog_exit(void)
 {
+
 	return (0);
 }
 
@@ -64,7 +66,7 @@ tsdfx_recentlog_new(const char *logfile, time_t duration)
 {
 	struct tsdfx_recentlog *r;
 
-	r = calloc(1, sizeof(*r));
+	r = calloc(1, sizeof *r);
 	r->logfile = strdup(logfile);
 	r->duration = duration;
 	return (r);
@@ -73,6 +75,7 @@ tsdfx_recentlog_new(const char *logfile, time_t duration)
 static void
 tsdfx_logentry_destroy(struct tsdfx_logentry *cur)
 {
+
 	cur->next = NULL;
 	free(cur->msg);
 	cur->msg = NULL;
@@ -102,8 +105,7 @@ tsdfx_recentlog_destroy(struct tsdfx_recentlog *r)
  * than duration.  Update the log file with the remaining queue entries.
  */
 void
-tsdfx_recentlog_log(struct tsdfx_recentlog *r,
-		    const char *msg)
+tsdfx_recentlog_log(struct tsdfx_recentlog *r, const char *msg)
 {
 	struct tsdfx_logentry *cur, *next;
 	FILE *fh;
@@ -111,7 +113,7 @@ tsdfx_recentlog_log(struct tsdfx_recentlog *r,
 
 	/* First create and insert logentry */
 	now = time(NULL);
-	cur = calloc(1, sizeof(*cur));
+	cur = calloc(1, sizeof *cur);
 	cur->timestamp = now;
 	cur->msg = strdup(msg);
 
@@ -152,26 +154,27 @@ main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 {
 	struct tsdfx_recentlog *r;
 
-	if (-1 == tsdfx_recentlog_init()) {
+	if (tsdfx_recentlog_init() == -1) {
 		ERROR("unable to initialize recentlog");
 		return (1);
 	}
 	r = tsdfx_recentlog_new("/tmp/test.log", 10);
-	if (NULL == r) {
+	if (r == NULL) {
 		ERROR("unable to make new recentlog");
 		return (1);
 	}
 	tsdfx_recentlog_log(r, "/etc/motd", "something is wrong");
 	sleep(5);
 	tsdfx_recentlog_log(r, "/etc/motd", "something is right");
-	if (-1 == tsdfx_recentlog_destroy(r)) {
+	if (tsdfx_recentlog_destroy(r) == -1) {
 		ERROR("unable to destroy recentlog");
 		return (1);
 	
 	}
-	if (-1 == tsdfx_recentlog_exit()) {
+	if (tsdfx_recentlog_exit() == -1) {
 		ERROR("unable to clean up recentlog");
 		return (1);
 	}
+	return (0);
 }
 #endif /* TEST */

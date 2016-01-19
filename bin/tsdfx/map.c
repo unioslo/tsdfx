@@ -93,6 +93,7 @@ map_new(const char *fn, int n, const char *name, const char *src, const char *ds
 {
 	struct tsdfx_map *m;
 	char logpath[PATH_MAX];
+	int len;
 
 	if ((m = calloc(1, sizeof *m)) == NULL) {
 		ERROR("calloc()");
@@ -113,9 +114,13 @@ map_new(const char *fn, int n, const char *name, const char *src, const char *ds
 		free(m);
 		return (NULL);
 	}
-
-	if ((int)sizeof(logpath) <= snprintf(logpath, sizeof logpath,
-				       "%s/tsdfx-error.log", m->dstpath)) {
+	len = snprintf(logpath, sizeof logpath, "%s/tsdfx-error.log",
+	    m->dstpath);
+	if (len < 0) {
+		ERROR("%s:%d: %s", fn, n, strerror(errno));
+		free(m);
+		return (NULL);
+	} else if ((size_t)len > sizeof logpath) {
 		ERROR("%s:%d: name too long", fn, n);
 		free(m);
 		return (NULL);
@@ -362,7 +367,8 @@ tsdfx_map_sched(void)
 int
 tsdfx_map_init(void)
 {
-	return tsdfx_recentlog_init();
+
+	return (tsdfx_recentlog_init());
 }
 
 int
@@ -382,5 +388,6 @@ tsdfx_map_exit(void)
 void
 tsdfx_map_log(struct tsdfx_map *map, const char *msg)
 {
+
 	tsdfx_recentlog_log(map->errlog, msg);
 }
