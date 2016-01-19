@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2012 Universitetet i Oslo
+ * Copyright (c) 2012-2015 The University of Oslo
  * Copyright (c) 2012 Dag-Erling Smørgrav
  * All rights reserved.
  *

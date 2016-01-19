@@ -1,6 +1,7 @@
 /*-
  * Copyright (c) 2000-2011 Poul-Henning Kamp
  * Copyright (c) 2000-2008 Dag-Erling Smørgrav
+ * Copyright (c) 2014 The University of Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
