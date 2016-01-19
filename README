@@ -1,8 +1,22 @@
-TSD file exchange
+TSD File eXchange
 =================
 
-Used to copy files in and out of a research environment for researches
-working on sensitive data.
+The tsdfx utility periodically scans a list of source directories and
+securely copies their contents to predefined target directories while
+logging all transfers.  It is designed to implement a file lock for
+firewalled environments where all transfers into or out of the "walled
+garden" are logged.
 
-The latest version of the source is available from
-https://github.com/unioslo/tsdfx
+The tsdfx utility was originally developed for the University of
+Oslo's TSD project.
+
+The latest version of the source code is available from Github:
+
+  https://github.com/unioslo/tsdfx
+
+Bugs can be reported as issues in Github:
+
+  https://github.com/unioslo/tsdfx/issues
+
+If you do not have a Github account and do not wish to create one, you
+can also report bugs by email to <tsdfx-bugs@usit.uio.no>.
