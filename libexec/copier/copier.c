@@ -612,7 +612,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 
 fail:
 	serrno = errno;
-	ERROR("failed to copy %s to %s", srcfn, dstfn);
+	USERERROR("failed to copy %s to %s", srcfn, dstfn);
 	/* if we copied anything at all, we should log it here */
 	if (src != NULL)
 		copyfile_close(src);
@@ -637,16 +637,22 @@ main(int argc, char *argv[])
 	uintmax_t maxsize;
 	char *e;
 	int opt;
+	int usererror2stderr;
 
 	maxsize = 0;
 	logfile = NULL;
+	for (int i = 0; i < argc; ++i)
+		ERROR("option '%s'", argv[i]);
 	while ((opt = getopt(argc, argv, "fhl:nm:v")) != -1)
 		switch (opt) {
 		case 'f':
 			++tsdfx_force;
 			break;
 		case 'l':
-			logfile = optarg;
+			if (strcmp(optarg, ":usererror=stderr") == 0)
+				usererror2stderr = 1;
+			else
+				logfile = optarg;
 			break;
 		case 'm':
 			maxsize = strtoumax(optarg, &e, 10);
@@ -670,6 +676,8 @@ main(int argc, char *argv[])
 		usage();
 
 	tsd_log_init("tsdfx-copier", logfile);
+	if (usererror2stderr)
+		tsd_log_usererror2stderr(usererror2stderr);
 
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");

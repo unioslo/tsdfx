@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2015 The University of Oslo
+ * Copyright (c) 2016 The University of Oslo
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,16 +27,17 @@
  * SUCH DAMAGE.
  */
 
-#ifndef TSDFX_MAP_H_INCLUDED
-#define TSDFX_MAP_H_INCLUDED
+#ifndef TSDFX_RECENTLOG_H_INCLUDED
+#define TSDFX_RECENTLOG_H_INCLUDED
 
-struct tsdfx_map;
+#include <time.h>
 
-int tsdfx_map_reload(const char *);
-int tsdfx_map_process(struct tsdfx_map *, const char *);
-int tsdfx_map_sched(void);
-int tsdfx_map_init(void);
-int tsdfx_map_exit(void);
-void tsdfx_map_log(struct tsdfx_map *map, const char *msg);
+struct tsdfx_recentlog;
 
-#endif
+int tsdfx_recentlog_init(void);
+int tsdfx_recentlog_exit(void);
+struct tsdfx_recentlog *tsdfx_recentlog_new(const char *logfile, time_t duration);
+int tsdfx_recentlog_destroy(struct tsdfx_recentlog *);
+void tsdfx_recentlog_log(struct tsdfx_recentlog *r, const char *logmsg);
+
+#endif /* TSDFX_RECENTLOG_H_INCLUDED */

@@ -171,11 +171,11 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 			size_t olen = percent_enclen(len);
 			char *encpath = calloc(1, olen);
 			if (0 == percent_encode(de->d_name, len, encpath, &olen)) {
-				NOTICE("invalid character in file '%s/%s' [inode %lu]",
+				USERERROR("invalid character in file '%s/%s' [inode %lu]\n",
 				       sbuf_data(parent), encpath,
 				       (unsigned long)de->d_ino);
 			} else {
-				NOTICE("invalid character in file '%s/[inode %lu]'",
+				USERERROR("invalid character in file '%s/[inode %lu]'",
 				       sbuf_data(parent), (unsigned long)de->d_ino);
 			}
 			free(encpath);
@@ -190,7 +190,7 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 	/* check file type */
 	if (fstatat(dd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
 		if (errno == EACCES || errno == EPERM) {
-			VERBOSE("%s/%s inaccessible", sbuf_data(parent),
+			USERERROR("%s/%s inaccessible", sbuf_data(parent),
 			    de->d_name);
 			return (0);
 		} else if (errno == ENOENT) {
@@ -232,11 +232,11 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 		break;
 	case S_IFLNK:
 		/* soft error */
-		NOTICE("ignoring symlink %s", p);
+		USERERROR("ignoring symlink %s", p);
 		break;
 	default:
 		/* soft error */
-		NOTICE("found strange file: %s (%#o)", p,
+		USERERROR("found strange file: %s (%#o)", p,
 		    st.st_mode & S_IFMT);
 		break;
 	}
@@ -260,7 +260,7 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			VERBOSE("%s disappeared", sbuf_data(path));
 			return (0);
 		} else if (errno == EACCES || errno == EPERM) {
-			NOTICE("%s inaccessible", sbuf_data(path));
+			USERERROR("%s inaccessible", sbuf_data(path));
 			return (0);
 		}
 		ERROR("%s: %s", sbuf_data(path), strerror(errno));
@@ -276,7 +276,7 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			continue;
 		/* ignore all entries that start with a period */
 		if (de->d_name[0] == '.') {
-			NOTICE("ignoring dot file %s/[%lu]",
+			USERERROR("ignoring dot file %s/[%lu]",
 			    sbuf_data(path), (unsigned long)de->d_ino);
 			continue;
 		}
@@ -332,12 +332,17 @@ main(int argc, char *argv[])
 {
 	const char *logfile;
 	int opt;
+	int usererror2stderr;
 
 	logfile = NULL;
+	usererror2stderr = 0;
 	while ((opt = getopt(argc, argv, "hl:v")) != -1)
 		switch (opt) {
 		case 'l':
-			logfile = optarg;
+			if (strcmp(optarg, ":usererror=stderr") == 0)
+				usererror2stderr = 1;
+			else
+				logfile = optarg;
 			break;
 		case 'v':
 			++tsd_log_verbose;
@@ -353,6 +358,8 @@ main(int argc, char *argv[])
 		usage();
 
 	tsd_log_init("tsdfx-scanner", logfile);
+	if (usererror2stderr)
+		tsd_log_usererror2stderr(usererror2stderr);
 
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");

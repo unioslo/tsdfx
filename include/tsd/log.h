@@ -35,9 +35,11 @@ typedef enum {
 	TSD_LOG_LEVEL_NOTICE,
 	TSD_LOG_LEVEL_WARNING,
 	TSD_LOG_LEVEL_ERROR,
+	TSD_LOG_LEVEL_USERERROR,
 } tsd_log_level_t;
 
 void tsd_log(tsd_log_level_t, const char *, int, const char *, const char *, ...);
+void tsd_log_usererror2stderr(const int tsd_log_usererror2stderr);
 int tsd_log_init(const char *, const char *);
 int tsd_log_exit(void);
 const char *tsd_log_getname(void);
@@ -66,6 +68,12 @@ extern int tsd_log_verbose;
 #define ERROR(...)							\
 	do {								\
 		tsd_log(TSD_LOG_LEVEL_ERROR, __FILE__, __LINE__,	\
+			__func__, __VA_ARGS__);				\
+	} while (0)
+
+#define USERERROR(...)							\
+	do {								\
+		tsd_log(TSD_LOG_LEVEL_USERERROR, __FILE__, __LINE__,	\
 			__func__, __VA_ARGS__);				\
 	} while (0)
 

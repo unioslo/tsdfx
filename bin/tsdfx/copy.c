@@ -285,7 +285,7 @@ static void
 tsdfx_copy_child(void *ud)
 {
 	struct tsdfx_copy_task_data *ctd = ud;
-	const char *argv[8];
+	const char *argv[12];
 	int argc;
 
 	/* check credentials */
@@ -305,6 +305,12 @@ tsdfx_copy_child(void *ud)
 		argv[argc++] = "-v";
 	argv[argc++] = "-l";
 	argv[argc++] = tsd_log_getname();
+	/*
+	 * Always log user errors to stderr.  We pick up the log messages
+	 * and pass them on to the final destination.
+	 */
+	argv[argc++] = "-l";
+	argv[argc++] = ":usererror=stderr";
 	if (ctd->maxsize != NULL) {
 		argv[argc++] = "-m";
 		argv[argc++] = ctd->maxsize;
@@ -312,6 +318,8 @@ tsdfx_copy_child(void *ud)
 	argv[argc++] = ctd->src;
 	argv[argc++] = ctd->dst;
 	argv[argc] = NULL;
+	ASSERTF((size_t)argc < sizeof argv / sizeof argv[0],
+	    "argv overflowed: %d > %z", argc, sizeof argv / sizeof argv[0]);
 	/* XXX should clean the environment */
 	execv(tsdfx_copier, (char *const *)argv);
 	ERROR("failed to execute copier process");

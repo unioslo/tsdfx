@@ -52,12 +52,14 @@
 #include "tsdfx_map.h"
 #include "tsdfx_scan.h"
 #include "tsdfx_copy.h"
+#include "tsdfx_recentlog.h"
 
 struct tsdfx_map {
 	char name[NAME_MAX];
 	char srcpath[PATH_MAX];
 	char dstpath[PATH_MAX];
 	struct tsd_task *task;
+	struct tsdfx_recentlog *errlog;
 };
 
 static struct tsdfx_map **map;
@@ -90,6 +92,8 @@ static struct tsdfx_map *
 map_new(const char *fn, int n, const char *name, const char *src, const char *dst)
 {
 	struct tsdfx_map *m;
+	char logpath[PATH_MAX];
+	int len;
 
 	if ((m = calloc(1, sizeof *m)) == NULL) {
 		ERROR("calloc()");
@@ -110,6 +114,22 @@ map_new(const char *fn, int n, const char *name, const char *src, const char *ds
 		free(m);
 		return (NULL);
 	}
+	len = snprintf(logpath, sizeof logpath, "%s/tsdfx-error.log",
+	    m->dstpath);
+	if (len < 0) {
+		ERROR("%s:%d: %s", fn, n, strerror(errno));
+		free(m);
+		return (NULL);
+	} else if ((size_t)len > sizeof logpath) {
+		ERROR("%s:%d: name too long", fn, n);
+		free(m);
+		return (NULL);
+	}
+	if ((m->errlog = tsdfx_recentlog_new(logpath, 5 * 60)) == NULL) {
+		ERROR("%s: unable to set up log", logpath);
+		free(m);
+		return (NULL);
+	}
 	return (m);
 }
 
@@ -122,6 +142,8 @@ map_delete(struct tsdfx_map *m)
 
 	if (m != NULL) {
 		tsdfx_scan_delete(m->task);
+		tsdfx_recentlog_destroy(m->errlog);
+		m->errlog = NULL;
 		free(m);
 	}
 }
@@ -343,6 +365,13 @@ tsdfx_map_sched(void)
 }
 
 int
+tsdfx_map_init(void)
+{
+
+	return (tsdfx_recentlog_init());
+}
+
+int
 tsdfx_map_exit(void)
 {
 	int i;
@@ -352,5 +381,13 @@ tsdfx_map_exit(void)
 		map[i] = NULL;
 	}
 	free(map);
+	tsdfx_recentlog_exit();
 	return (0);
+}
+
+void
+tsdfx_map_log(struct tsdfx_map *map, const char *msg)
+{
+
+	tsdfx_recentlog_log(map->errlog, msg);
 }
