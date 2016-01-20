@@ -13,7 +13,7 @@ timeout=10
 elapsed=0
 while [ ! -s "${pidfile}" ] ; do
 	[ $((elapsed+=1)) -le "${timeout}" ] ||
-		fail "timed out waiting for pid file to appear"
+		fail_test "timed out waiting for pid file to appear"
 	sleep 1
 done
 notice "pid file appeared after $elapsed seconds"
@@ -21,7 +21,7 @@ notice "pid file appeared after $elapsed seconds"
 # kill tsdfx
 pid=$(cat "${pidfile}")
 expr "${pid}" : "^[1-9][0-9]*$" >/dev/null ||
-	fail "unexpected contents in pid file"
+	fail_test "unexpected contents in pid file"
 kill "${pid}"
 notice "killed daemon"
 
@@ -29,7 +29,7 @@ notice "killed daemon"
 elapsed=0
 while [ -s "${pidfile}" ] ; do
 	[ $((elapsed+=1)) -le "${timeout}" ] ||
-		fail "timed out waiting for pid file to vanish"
+		fail_test "timed out waiting for pid file to vanish"
 	sleep 1
 done
 notice "pid file vanished after $elapsed seconds"

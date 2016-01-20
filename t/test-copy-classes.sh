@@ -28,9 +28,9 @@ run_daemon -1
 
 while read name size ; do
 	if [ ! -e "${dstdir}/${name}" ] ; then
-		fail "missing: ${dstdir}/${name}"
+		fail_test "missing: ${dstdir}/${name}"
 	elif ! cmp -s "${srcdir}/${name}" "${dstdir}/${name}" ; then
-		fail "incorrect: ${dstdir}/${name}"
+		fail_test "incorrect: ${dstdir}/${name}"
 	fi
 	if [ "${size}" -le "${limit}" ] ; then
 		class="${limit}"
@@ -40,9 +40,9 @@ while read name size ; do
 	if egrep -q "Assigning .*/${name} .* <= ${class}" "${logfile}" ; then
 		notice "${name} was assigned to the correct copier"
 	elif egrep -q "Assigning .*/${name} .* <= [0-9]+" "${logfile}" ; then
-		fail "${name} was assigned to the wrong copier"
+		fail_test "${name} was assigned to the wrong copier"
 	else
-		fail "unable to find copier assignment for ${name}"
+		fail_test "unable to find copier assignment for ${name}"
 	fi
 done < "${casefile}"
 

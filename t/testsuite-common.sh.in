@@ -49,7 +49,7 @@ set_blocksize() {
 		elif [ -d "$1" ] ; then
 			bsfile="$1/bsfile"
 		else
-			fail "can't determine block size of $1"
+			fail_test "can't determine block size of $1"
 		fi
 		dd if=/dev/zero of="${bsfile}" bs=1048576 count=1
 	fi
@@ -61,7 +61,7 @@ set_blocksize() {
 		rm "${bsfile}"
 	fi
 	expr "${blocksize}" : '^[1-9][0-9]*$' >/dev/null || \
-	    fail "Unable to determine filesystem block size"
+	    fail_test "Unable to determine filesystem block size"
 	notice "Using ${blocksize}-byte blocks"
 }
 
@@ -93,7 +93,7 @@ kill_daemon() {
 	notice "tsdfx stopped after ${elapsed} seconds"
 }
 
-fail() {
+fail_test() {
 	(
 		kill_daemon
 		echo "FAIL $@"

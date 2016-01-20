@@ -46,7 +46,7 @@ while read fn ; do
 done < ${list}
 
 if [ $missing -gt 0 -o $invalid -gt 0 ] ; then
-	fail "$missing missing, $invalid invalid"
+	fail_test "$missing missing, $invalid invalid"
 fi
 
 cleanup_test
