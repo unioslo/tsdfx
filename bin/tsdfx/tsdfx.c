@@ -132,5 +132,9 @@ tsdfx_run(const char *mapfile)
 	signal(SIGTERM, oldsigterm);
 	signal(SIGINT, oldsigint);
 	signal(SIGHUP, oldsighup);
+	if (killed)
+		VERBOSE("received signal %d", (int)killed);
+	else
+		VERBOSE("all work completed in one-shot mode");
 	return (killed);
 }
