@@ -6,10 +6,13 @@ setup_test
 
 run_daemon
 
+# Timeout for various operations
+timeout=10
+
 # wait for the pid file to appear
-limit=20
+elapsed=0
 while [ ! -s "${pidfile}" ] ; do
-	[ $((elapsed+=1)) -lt $limit ] ||
+	[ $((elapsed+=1)) -le "${timeout}" ] ||
 		fail "timed out waiting for pid file to appear"
 	sleep 1
 done
@@ -20,9 +23,9 @@ kill "$(cat ${pidfile})"
 notice "killed daemon"
 
 # wait for the pid file to vanish
-limit=20
+elapsed=0
 while [ -s "${pidfile}" ] ; do
-	[ $((elapsed+=1)) -lt $limit ] ||
+	[ $((elapsed+=1)) -le "${timeout}" ] ||
 		fail "timed out waiting for pid file to vanish"
 	sleep 1
 done
