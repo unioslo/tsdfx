@@ -460,7 +460,7 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 {
 #if HAVE_STATVFS
 	struct statvfs st;
-	off_t needbytes;
+	off_t have, need;
 #endif
 	struct copyfile *src, *dst;
 	int serrno;
@@ -525,10 +525,12 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 #if HAVE_STATVFS
 	/* check for available space */
 	if (src->st.st_size > dst->st.st_size && fstatvfs(dst->fd, &st) == 0) {
-		needbytes = src->st.st_size - dst->st.st_size;
-		if (st.f_bavail < (needbytes + st.f_bsize - 1) / st.f_bsize) {
-			WARNING("insufficient free space (need %zu bytes)",
-			    (size_t)needbytes);
+		have = (off_t)(st.f_bavail * st.f_bsize);
+		need = src->st.st_size - dst->st.st_size;
+		if (have < need) {
+			USERERROR("insufficient space for %s "
+			    "(have %ju bytes free, need %ju bytes)",
+			    dstfn, (uintmax_t)have, (uintmax_t)need);
 			/* don't leave an empty file */
 			if (dst->st.st_size == 0)
 				unlink(dstfn);

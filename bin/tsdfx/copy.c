@@ -33,12 +33,6 @@
 
 #include <sys/stat.h>
 
-#if HAVE_SYS_STATVFS_H
-#include <sys/statvfs.h>
-#else
-#undef HAVE_STATVFS
-#endif
-
 #include <errno.h>
 #include <limits.h>
 #include <pwd.h>
@@ -346,9 +340,6 @@ int
 tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *path)
 {
 	char srcpath[PATH_MAX], dstpath[PATH_MAX];
-#if HAVE_STATVFS
-	struct statvfs st;
-#endif
 	struct stat srcst, dstst;
 	mode_t mode;
 
@@ -420,16 +411,6 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *path)
 	} else {
 		memset(&dstst, 0, sizeof dstst);
 	}
-
-#if HAVE_STATVFS
-	/* check for available space */
-	if (!S_ISDIR(srcst.st_mode) &&
-	    srcst.st_size > dstst.st_size && statvfs(dstdir, &st) == 0 &&
-	    (off_t)(st.f_bavail * st.f_bsize) < srcst.st_size - dstst.st_size) {
-		errno = EAGAIN;
-		return (-1);
-	}
-#endif
 
 	/* create task */
 	tsdfx_copy_new(srcpath, dstpath);
