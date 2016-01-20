@@ -276,8 +276,18 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			continue;
 		/* ignore all entries that start with a period */
 		if (de->d_name[0] == '.') {
-			USERERROR("ignoring dot file %s/[%lu]",
-			    sbuf_data(path), (unsigned long)de->d_ino);
+			size_t len = strlen(de->d_name);
+			size_t olen = percent_enclen(len);
+			char *encpath = calloc(1, olen);
+			if (0 == percent_encode(de->d_name, len, encpath, &olen)) {
+				USERERROR("ignoring dot file '%s/%s' [inode %lu]\n",
+				    sbuf_data(path), encpath,
+				       (unsigned long)de->d_ino);
+			} else {
+				USERERROR("ignoring dot file '%s/[inode %lu]'",
+				       sbuf_data(path), (unsigned long)de->d_ino);
+			}
+			free(encpath);
 			continue;
 		}
 		if (tsdfx_process_dirent(path, dd, de) != 0)
