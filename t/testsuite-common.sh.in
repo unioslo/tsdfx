@@ -13,25 +13,6 @@ notice() {
 	echo "NOTICE $@" >&2
 }
 
-fail() {
-	(
-		[ -f "${pidfile}" ] && kill $(cat "${pidfile}")
-		echo "FAIL $@"
-		echo "last lines in log file:"
-		echo
-		tail -30 $logfile
-		echo
-		echo "source directory:"
-		echo
-		(cd "${tstdir}" && find src) | sort
-		echo
-		echo "dst directory:"
-		echo
-		(cd "${tstdir}" && find dst) | sort
-	) >&2
-	exit 1
-}
-
 setup_test() {
 	set -e
 
@@ -91,19 +72,48 @@ run_daemon() {
 	x "${tsdfx}" -v -l "${logfile}" -m "${mapfile}" -p "${pidfile}" "$@"
 }
 
-cleanup_test() {
+kill_daemon() {
+	[ -f "${pidfile}" ] || return 0
 	timeout=10
 	elapsed=0
-	if [ -f "${pidfile}" ] ; then
-		pid=$(cat "${pidfile}")
-		kill "${pid}" >/dev/null 2>&1
-		while kill -0 "${pid}" >/dev/null 2>&1 ; do
-			[ $((elapsed+=1)) -le "${timeout}" ] ||
-				fail "timed out waiting for tsdfx to stop"
-			sleep 1
-		done
-		notice "tsdfx stopped after ${elapsed} seconds"
+	pid=$(cat "${pidfile}")
+	if ! expr "${pid}" : "^[1-9][0-9]*$" >/dev/null ; then
+		echo "invalid pid in ${pidfile}" >&2
+		rm -f "${pidfile}"
+		return 1
 	fi
+	kill "${pid}" >/dev/null 2>&1 || return 0
+	while kill -0 "${pid}" >/dev/null 2>&1 ; do
+		if [ $((elapsed+=1)) -gt "${timeout}" ] ; then
+			echo "timed out waiting for tsdfx to stop" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	notice "tsdfx stopped after ${elapsed} seconds"
+}
+
+fail() {
+	(
+		kill_daemon
+		echo "FAIL $@"
+		echo "last lines in log file:"
+		echo
+		tail -30 $logfile
+		echo
+		echo "source directory:"
+		echo
+		(cd "${tstdir}" && find src) | sort
+		echo
+		echo "dst directory:"
+		echo
+		(cd "${tstdir}" && find dst) | sort
+	) >&2
+	exit 1
+}
+
+cleanup_test() {
+	kill_daemon
 	chmod -R u+rwX "${tstdir}"
 	rm -rf "${tstdir}"
 }
