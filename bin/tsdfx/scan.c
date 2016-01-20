@@ -595,18 +595,18 @@ tsdfx_scan_sched(void)
 			tsdfx_scan_poll(t);
 			break;
 		case TASK_FINISHED:
-			tsd_task_reset(t);
+			tsdfx_scan_reset(t);
 			break;
 		case TASK_DEAD:
 		case TASK_FAILED:
 		case TASK_INVALID:
 			if (now >= std->lastran + tsdfx_reset_interval)
-				tsd_task_reset(t);
+				tsdfx_scan_reset(t);
 			break;
 		case TASK_STOPPED:
 			/* shouldn't happen */
 			ERROR("scan task in TASK_STOPPED state");
-			tsd_task_reset(t);
+			tsdfx_scan_reset(t);
 			break;
 		default:
 			/* unreachable */
