@@ -19,7 +19,10 @@ done
 notice "pid file appeared after $elapsed seconds"
 
 # kill tsdfx
-kill "$(cat ${pidfile})"
+pid=$(cat "${pidfile}")
+expr "${pid}" : "^[1-9][0-9]*$" >/dev/null ||
+	fail "unexpected contents in pid file"
+kill "${pid}"
 notice "killed daemon"
 
 # wait for the pid file to vanish
