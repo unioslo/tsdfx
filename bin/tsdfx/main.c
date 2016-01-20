@@ -175,13 +175,13 @@ main(int argc, char *argv[])
 
 	tsdfx_exit();
 
-	tsd_log_exit();
-
 	if (!nodaemon) {
 		VERBOSE("removing pid file %s", pidfilename);
 		tsd_pidfile_remove(pidfh);
 		pidfh = NULL;
 	}
+
+	tsd_log_exit();
 
 	if (killed > 0)
 		raise(killed);
