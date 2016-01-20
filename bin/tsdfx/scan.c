@@ -314,7 +314,7 @@ tsdfx_scan_child(void *ud)
 	 * and pass them on to the final destination.
 	 */
 	argv[argc++] = "-l";
-	argv[argc++] = ":usererror=stderr";
+	argv[argc++] = ":user=:stderr";
 	argv[argc++] = ".";
 	argv[argc] = NULL;
 	ASSERTF((size_t)argc < sizeof argv / sizeof argv[0],

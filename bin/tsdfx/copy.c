@@ -304,7 +304,7 @@ tsdfx_copy_child(void *ud)
 	 * and pass them on to the final destination.
 	 */
 	argv[argc++] = "-l";
-	argv[argc++] = ":usererror=stderr";
+	argv[argc++] = ":user=:stderr";
 	if (ctd->maxsize != NULL) {
 		argv[argc++] = "-m";
 		argv[argc++] = ctd->maxsize;
