@@ -320,7 +320,7 @@ tsdfx_scan_child(void *ud)
 	ASSERTF((size_t)argc < sizeof argv / sizeof argv[0],
 	    "argv overflowed: %d > %z", argc, sizeof argv / sizeof argv[0]);
 	/* XXX should clean the environment */
-	execv(tsdfx_scanner, (char * const *)argv);
+	execv(tsdfx_scanner, (char * const *)(uintptr_t)argv);
 	ERROR("failed to execute scanner process");
 	_exit(1);
 }

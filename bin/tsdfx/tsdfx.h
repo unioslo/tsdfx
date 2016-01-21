@@ -40,9 +40,6 @@ int tsdfx_exit(void);
 extern int tsdfx_dryrun;
 extern int tsdfx_oneshot;
 
-extern int scan_running;
-extern int copy_running;
-
 extern const char *tsdfx_scanner;
 extern const char *tsdfx_copier;
 
