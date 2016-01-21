@@ -62,9 +62,9 @@ struct tsdfx_map {
 	struct tsdfx_recentlog *errlog;
 };
 
-static struct tsdfx_map **map;
-static size_t map_sz;
-static int map_len;
+static struct tsdfx_map **tsdfx_map;
+static size_t tsdfx_map_sz;
+static int tsdfx_map_len;
 
 /*
  * Validate a path
@@ -274,15 +274,15 @@ tsdfx_map_reload(const char *fn)
 	/* first, create new tasks */
 	i = j = 0;
 	while (j < newmap_len) {
-		res = (i < map_len) ?
-		    strcmp(map[i]->name, newmap[j]->name) : 1;
+		res = (i < tsdfx_map_len) ?
+		    strcmp(tsdfx_map[i]->name, newmap[j]->name) : 1;
 		if (res == 0) {
 			/* unchanged task */
-			VERBOSE("keeping %s", map[i]->name);
+			VERBOSE("keeping %s", tsdfx_map[i]->name);
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
-			VERBOSE("dropping %s", map[i]->name);
+			VERBOSE("dropping %s", tsdfx_map[i]->name);
 			++i;
 		} else if (res > 0) {
 			/* new task */
@@ -298,20 +298,20 @@ tsdfx_map_reload(const char *fn)
 	}
 	/* copy unchanged tasks */
 	i = j = 0;
-	while (i < map_len) {
+	while (i < tsdfx_map_len) {
 		res = (j < newmap_len) ?
-		    strcmp(map[i]->name, newmap[j]->name) : -1;
+		    strcmp(tsdfx_map[i]->name, newmap[j]->name) : -1;
 		if (res == 0) {
 			/* unchanged task */
 			map_delete(newmap[j]);
-			newmap[j] = map[i];
-			map[i] = NULL;
+			newmap[j] = tsdfx_map[i];
+			tsdfx_map[i] = NULL;
 			tsdfx_scan_rush(newmap[j]->task);
 			++i, ++j;
 		} else if (res < 0) {
 			/* deleted task */
-			map_delete(map[i]);
-			map[i] = NULL;
+			map_delete(tsdfx_map[i]);
+			tsdfx_map[i] = NULL;
 			++i;
 		} else if (res > 0) {
 			/* new task */
@@ -321,15 +321,15 @@ tsdfx_map_reload(const char *fn)
 		}
 	}
 	/* the old map is now empty */
-	for (i = 0; i < map_len; ++i)
-		ASSERT(map[i] == NULL);
-	free(map);
-	map = newmap;
-	map_sz = newmap_sz;
-	map_len = newmap_len;
-	for (i = 0; i < map_len; ++i)
-		VERBOSE("map %s: %s -> %s", map[i]->name,
-		    map[i]->srcpath, map[i]->dstpath);
+	for (i = 0; i < tsdfx_map_len; ++i)
+		ASSERT(tsdfx_map[i] == NULL);
+	free(tsdfx_map);
+	tsdfx_map = newmap;
+	tsdfx_map_sz = newmap_sz;
+	tsdfx_map_len = newmap_len;
+	for (i = 0; i < tsdfx_map_len; ++i)
+		VERBOSE("map %s: %s -> %s", tsdfx_map[i]->name,
+		    tsdfx_map[i]->srcpath, tsdfx_map[i]->dstpath);
 	return (0);
 fail:
 	for (j = 0; i < newmap_len; ++j)
@@ -358,10 +358,10 @@ tsdfx_map_sched(void)
 {
 	int i;
 
-	for (i = 0; i < map_len; ++i) {
+	for (i = 0; i < tsdfx_map_len; ++i) {
 		/* nothing to do */
 	}
-	return (map_len);
+	return (tsdfx_map_len);
 }
 
 int
@@ -376,11 +376,11 @@ tsdfx_map_exit(void)
 {
 	int i;
 
-	for (i = 0; i < map_len; ++i) {
-		map_delete(map[i]);
-		map[i] = NULL;
+	for (i = 0; i < tsdfx_map_len; ++i) {
+		map_delete(tsdfx_map[i]);
+		tsdfx_map[i] = NULL;
 	}
-	free(map);
+	free(tsdfx_map);
 	tsdfx_recentlog_exit();
 	return (0);
 }
