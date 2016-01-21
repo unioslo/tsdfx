@@ -13,14 +13,14 @@ timeout=10
 elapsed=0
 while ! grep -q tsdfx_scan_stop "${logfile}" ; do
 	[ $((elapsed+=1)) -le "${timeout}" ] ||
-		fail "timed out waiting for first scan"
+		fail_test "timed out waiting for first scan"
 	sleep 1
 done
 notice "initial scan complete after ${elapsed} seconds"
 scan_stop_count=$(grep -c tsdfx_scan_stop "${logfile}")
 
 if grep -q 'tsdfx_map_reload.*keeping' "${logfile}" ; then
-	fail "map file spontaneously reloaded"
+	fail_test "map file spontaneously reloaded"
 fi
 
 echo "the quick brown fox jumps over the lazy dog" >"${srcdir}/test1"
@@ -32,7 +32,7 @@ kill -HUP $(cat "${pidfile}")
 elapsed=0
 while ! grep -q 'tsdfx_map_reload.*keeping' "${logfile}" ; do
 	[ $((elapsed+=1)) -le "${timeout}" ] ||
-		fail "timed out waiting for map reload"
+		fail_test "timed out waiting for map reload"
 	sleep 1
 done
 notice "map reloaded after ${elapsed} seconds"
@@ -41,7 +41,7 @@ notice "map reloaded after ${elapsed} seconds"
 elapsed=0
 while ! [ -s "${dstdir}/test1" -a -s "${dstdir}/test2" ] ; do
 	[ $((elapsed+=1)) -le "${timeout}" ] ||
-		fail "timed out waiting for copy"
+		fail_test "timed out waiting for copy"
 	sleep 1
 done
 notice "copy complete after ${elapsed} seconds"
@@ -49,9 +49,9 @@ notice "copy complete after ${elapsed} seconds"
 # Compare source and destination
 for good in test1 test2 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then
-		fail "missing: ${dstdir}/${good}"
+		fail_test "missing: ${dstdir}/${good}"
 	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then
-		fail "incorrect: ${dstdir}/${good}"
+		fail_test "incorrect: ${dstdir}/${good}"
 	fi
 done
 

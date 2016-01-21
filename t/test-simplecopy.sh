@@ -24,27 +24,27 @@ run_daemon -1
 
 for good in test1 test2 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then
-		fail "missing: ${dstdir}/${good}"
+		fail_test "missing: ${dstdir}/${good}"
 	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then
-		fail "incorrect: ${dstdir}/${good}"
+		fail_test "incorrect: ${dstdir}/${good}"
 	fi
 done
 
 for bad in "test (2).txt" ; do
 	if [ -e "${bad}" ] ; then
-		fail "should not exist: ${bad}"
+		fail_test "should not exist: ${bad}"
 	fi
 done
 
 md5end=$(cd ${dstdir}; md5sum ${randomsize}krandom)
 if [ "$md5start" != "$md5end" ]; then
-    fail "${randomsize}krandom file changed from source to destination"
+    fail_test "${randomsize}krandom file changed from source to destination"
 fi
 
 # Make sure failed copy of "test (2).txt" and others are reported as
 # errors in destination directory.
 if [ ! -e "${dstdir}/tsdfx-error.log" ] ; then
-    fail "missing ${dstdir}/tsdfx-error.log"
+    fail_test "missing ${dstdir}/tsdfx-error.log"
 fi
 
 cleanup_test

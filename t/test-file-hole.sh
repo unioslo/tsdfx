@@ -28,7 +28,7 @@ run_daemon -1
 hmd5src="$(cd "${srcdir}"; md5sum "random-with-holes")"
 hmd5dst="$(cd "${dstdir}"; md5sum "random-with-holes")"
 if [ "$hmd5src" != "$hmd5dst" ] ; then
-    fail "File with hole changed MD5sum during transmission: $hmd5src != $hmd5dst"
+    fail_test "File with hole changed MD5sum during transmission: $hmd5src != $hmd5dst"
 else
     echo "All ok with holy file"
 fi

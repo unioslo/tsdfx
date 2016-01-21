@@ -25,9 +25,9 @@ run_daemon -1
 # inaccessible directory
 for good in test2; do
 	if [ ! -e "${dstdir}/${good}" ] ; then
-		fail "missing: ${dstdir}/${good}"
+		fail_test "missing: ${dstdir}/${good}"
 	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then
-		fail "incorrect: ${dstdir}/${good}"
+		fail_test "incorrect: ${dstdir}/${good}"
 	fi
 done
 
