@@ -130,6 +130,11 @@ tsdfx_recentlog_log(struct tsdfx_recentlog *r, const char *msg)
 	WARNING("updating user visible log file");
 	/* FIXME write to logfile.new and rename */
 	fh = fopen(r->logfile, "w");
+	if (fh == NULL) {
+		ERROR("unable to write user errors to %s: %s",
+		      r->logfile, strerror(errno));
+		return;
+	}
 	cur = r->first;
 	while (cur != NULL) {
 		next = cur->next;
