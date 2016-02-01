@@ -643,8 +643,6 @@ main(int argc, char *argv[])
 
 	maxsize = 0;
 	logfile = NULL;
-	for (int i = 0; i < argc; ++i)
-		ERROR("option '%s'", argv[i]);
 	while ((opt = getopt(argc, argv, "fhl:nm:v")) != -1)
 		switch (opt) {
 		case 'f':
