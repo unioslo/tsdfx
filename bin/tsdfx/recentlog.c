@@ -32,6 +32,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <tsd/assert.h>
 
@@ -129,6 +130,11 @@ tsdfx_recentlog_log(struct tsdfx_recentlog *r, const char *msg)
 	WARNING("updating user visible log file");
 	/* FIXME write to logfile.new and rename */
 	fh = fopen(r->logfile, "w");
+	if (fh == NULL) {
+		ERROR("unable to write user errors to %s: %s",
+		      r->logfile, strerror(errno));
+		return;
+	}
 	cur = r->first;
 	while (cur != NULL) {
 		next = cur->next;
@@ -154,27 +160,53 @@ main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 {
 	struct tsdfx_recentlog *r;
 
+	if (tsd_log_init("tsdfx", ":stderr") != 0)
+		exit(1);
+
 	if (tsdfx_recentlog_init() == -1) {
 		ERROR("unable to initialize recentlog");
 		return (1);
 	}
+
+	/*
+	 * First test with a working file.
+	 */
 	r = tsdfx_recentlog_new("/tmp/test.log", 10);
 	if (r == NULL) {
 		ERROR("unable to make new recentlog");
 		return (1);
 	}
-	tsdfx_recentlog_log(r, "/etc/motd", "something is wrong");
+	tsdfx_recentlog_log(r, "something is wrong");
 	sleep(5);
-	tsdfx_recentlog_log(r, "/etc/motd", "something is right");
+	tsdfx_recentlog_log(r, "something is right");
 	if (tsdfx_recentlog_destroy(r) == -1) {
 		ERROR("unable to destroy recentlog");
 		return (1);
 	
 	}
+
+	/*
+	 * Next test with a file that can not be created.
+	 */
+	r = tsdfx_recentlog_new("/bogus/path/test.log", 10);
+	if (r == NULL) {
+		ERROR("unable to make new recentlog");
+		return (1);
+	}
+	tsdfx_recentlog_log(r, "something is wrong");
+	sleep(5);
+	tsdfx_recentlog_log(r, "something is right");
+	if (tsdfx_recentlog_destroy(r) == -1) {
+		ERROR("unable to destroy recentlog");
+		return (1);
+	
+	}
+
 	if (tsdfx_recentlog_exit() == -1) {
 		ERROR("unable to clean up recentlog");
 		return (1);
 	}
+	tsd_log_exit();
 	return (0);
 }
 #endif /* TEST */
