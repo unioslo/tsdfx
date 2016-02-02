@@ -176,12 +176,14 @@ tsd_log_initlog(char **fnp, FILE **fp, const char *logspec)
 	if (logspec == NULL || *logspec == '\0') {
 		errno = ENOENT;
 		return (-1);
-	} else if (strcmp(logspec, ":stderr") == 0) {
+	}
+	if (strcmp(logspec, ":stderr") == 0) {
 		logspec = "/dev/stderr";
 	} else if (logspec[0] == ':') {
 		errno = EINVAL;
 		return (-1);
-	} else if ((fn = strdup(logspec)) == NULL) {
+	}
+	if ((fn = strdup(logspec)) == NULL) {
 		return (-1);
 	}
 	if ((f = fopen(logspec, "a")) == NULL) {
