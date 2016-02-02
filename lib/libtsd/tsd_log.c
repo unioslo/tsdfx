@@ -44,10 +44,11 @@
 
 int tsd_log_quiet = 0;
 int tsd_log_verbose = 0;
-int tsd_log_usererror_to_stderr = 0;
 
 static char *tsd_log_filename;
 static FILE *tsd_log_file;
+static char *tsd_userlog_filename;
+static FILE *tsd_userlog_file;
 const char *tsd_log_ident;
 
 static int
@@ -137,47 +138,116 @@ tsd_log(tsd_log_level_t level, const char *file, int line, const char *func,
 #define LOGFMT "%s [%d] %s: %s:%d %s() %s\n"
 	if (tsd_log_file != NULL)
 		fprintf(tsd_log_file, LOGFMT, timestr, (int)getpid(),
-			tsd_log_level2str(level), file, line, func, msgbuffer);
-	if (level == TSD_LOG_LEVEL_USERERROR && tsd_log_file != stderr)
-		fprintf(stderr, LOGFMT, timestr, (int)getpid(),
-			tsd_log_level2str(level), file, line, func, msgbuffer);
+		    tsd_log_level2str(level), file, line, func, msgbuffer);
+	if (level == TSD_LOG_LEVEL_USERERROR && tsd_userlog_file != NULL)
+		fprintf(tsd_userlog_file, LOGFMT, timestr, (int)getpid(),
+		    tsd_log_level2str(level), file, line, func, msgbuffer);
 
 	free(msgbuffer);
 	msgbuffer = NULL;
 	errno = serrno;
 }
 
-void
-tsd_log_usererror2stderr(const int usererror2stderr)
+/*
+ * Close a log destination
+ */
+static void
+tsd_log_closelog(char **fnp, FILE **fp)
 {
 
-	tsd_log_usererror_to_stderr = usererror2stderr;
+	if (*fp != NULL)
+		fclose(*fp);
+	fp = NULL;
+	if (*fnp != NULL)
+		free(*fnp);
+	fnp = NULL;
 }
 
-int
-tsd_log_init(const char *ident, const char *logfile)
+/*
+ * Parse a log destination specification and open it
+ */
+static int
+tsd_log_initlog(char **fnp, FILE **fp, const char *logspec)
 {
+	char *fn;
+	FILE *f;
+	int serrno;
 
-	tsd_log_ident = ident ? ident : "tsd";
-	if (logfile == NULL)
-		logfile = ":stderr";
-	if ((tsd_log_filename = strdup(logfile)) == NULL)
+	if (logspec == NULL || *logspec == '\0') {
+		errno = ENOENT;
 		return (-1);
-	if (strcmp(logfile, ":stderr") == 0)
-		tsd_log_file = stderr;
-	else if (strcmp(logfile, ":syslog") == 0)
-		openlog(ident, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL3);
-	else if ((tsd_log_file = fopen(logfile, "a")) == NULL)
+	}
+	if (strcmp(logspec, ":stderr") == 0) {
+		logspec = "/dev/stderr";
+	} else if (logspec[0] == ':') {
+		errno = EINVAL;
 		return (-1);
-	if (tsd_log_file != NULL)
-		setvbuf(tsd_log_file, NULL, _IOLBF, 0);
+	}
+	if ((fn = strdup(logspec)) == NULL) {
+		return (-1);
+	}
+	if ((f = fopen(logspec, "a")) == NULL) {
+		serrno = errno;
+		free(fn);
+		errno = serrno;
+		return (-1);
+	}
+	setvbuf(f, NULL, _IOLBF, 0);
+	tsd_log_closelog(fnp, fp);
+	*fnp = fn;
+	*fp = f;
 	return (0);
 }
 
+/*
+ * Specify a optional destination for user errors, in addition to the
+ * standard log destination.  This has to be either ":stderr" or the path
+ * to a file (or device node).  Passing NULL or an empty string resets the
+ * user log destination so user errors only go to the standard log.
+ */
+int
+tsd_log_userlog(const char *logspec)
+{
+
+	if (logspec == NULL || *logspec == '\0')
+		tsd_log_closelog(&tsd_userlog_filename, &tsd_userlog_file);
+	return (tsd_log_initlog(&tsd_userlog_filename, &tsd_userlog_file,
+	    logspec));
+}
+
+/*
+ * Specify a destination for log messages.  Passing NULL or an empty
+ * string resets the log destination to stderr.
+ */
+int
+tsd_log_init(const char *ident, const char *logspec)
+{
+
+	if (logspec == NULL || *logspec == '\0')
+		logspec = ":stderr";
+	if (strcmp(logspec, ":syslog") == 0) {
+		tsd_log_closelog(&tsd_log_filename, &tsd_log_file);
+		tsd_log_ident = ident ? ident : "tsd";
+		openlog(tsd_log_ident, LOG_CONS | LOG_PID | LOG_NDELAY,
+		    LOG_LOCAL3);
+	} else {
+		if (tsd_log_initlog(&tsd_log_filename, &tsd_log_file,
+		    logspec) != 0)
+			return (-1);
+		tsd_log_ident = NULL;
+	}
+	return (0);
+}
+
+/*
+ * Close all log destinations
+ */
 int
 tsd_log_exit(void)
 {
-	free(tsd_log_filename);
+
+	tsd_log_closelog(&tsd_log_filename, &tsd_log_file);
+	tsd_log_closelog(&tsd_userlog_filename, &tsd_userlog_file);
 	return (0);
 }
 
@@ -185,5 +255,12 @@ const char *
 tsd_log_getname(void)
 {
 
-	return (tsd_log_filename);
+	return (tsd_log_filename ? tsd_log_filename : ":syslog");
+}
+
+const char *
+tsd_userlog_getname(void)
+{
+
+	return (tsd_userlog_filename);
 }

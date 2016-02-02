@@ -635,22 +635,21 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	const char *logfile;
+	const char *logfile, *userlog;
 	uintmax_t maxsize;
 	char *e;
 	int opt;
-	int usererror2stderr;
 
 	maxsize = 0;
-	logfile = NULL;
+	logfile = userlog = NULL;
 	while ((opt = getopt(argc, argv, "fhl:nm:v")) != -1)
 		switch (opt) {
 		case 'f':
 			++tsdfx_force;
 			break;
 		case 'l':
-			if (strcmp(optarg, ":usererror=stderr") == 0)
-				usererror2stderr = 1;
+			if (strncmp(optarg, ":user=", 6) == 0)
+				userlog = optarg + 6;
 			else
 				logfile = optarg;
 			break;
@@ -676,8 +675,7 @@ main(int argc, char *argv[])
 		usage();
 
 	tsd_log_init("tsdfx-copier", logfile);
-	if (usererror2stderr)
-		tsd_log_usererror2stderr(usererror2stderr);
+	tsd_log_userlog(userlog);
 
 	if (getuid() == 0 || geteuid() == 0)
 		WARNING("running as root");
