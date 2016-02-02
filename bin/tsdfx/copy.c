@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #if HAVE_BSD_UNISTD_H
 #include <bsd/unistd.h>
@@ -58,6 +59,12 @@
 #define TSDFX_COPY_UMASK 007
 
 int tsdfx_dryrun = 0;
+
+/*
+ * When source files are unmodified for this long, and already present
+ * in destination directory, purge it from the source directory.
+ */
+time_t tsdfx_copy_purgeperiod = 30 * 24 * 60 * 60; /* default is 30 days */
 
 /*
  * Private data for a copy task
@@ -101,6 +108,7 @@ static void tsdfx_copy_name(char *, const char *, const char *);
 static struct tsd_task *tsdfx_copy_find(const char *, const char *);
 static int tsdfx_copy_poll(struct tsd_task *);
 static void tsdfx_copy_child(void *);
+static void tsdfx_copy_purgesource_child(void *);
 
 static int tsdfx_copy_add(struct tsd_task *);
 static int tsdfx_copy_remove(struct tsd_task *);
@@ -117,9 +125,13 @@ tsdfx_copy_name(char *name, const char *src, const char *dst)
 	unsigned int i;
 
 	sha1_init(&ctx);
-	sha1_update(&ctx, "copy", sizeof "copy");
+	if (dst != NULL)
+		sha1_update(&ctx, "copy", sizeof "copy");
+	else
+		sha1_update(&ctx, "purge", sizeof "purge");
 	sha1_update(&ctx, src, strlen(src) + 1);
-	sha1_update(&ctx, dst, strlen(dst) + 1);
+	if (dst != NULL)
+		sha1_update(&ctx, dst, strlen(dst) + 1);
 	sha1_final(&ctx, digest);
 	for (i = 0; i < SHA1_DIGEST_LEN; ++i) {
 		name[i * 2] = "0123456789abcdef"[digest[i] / 16];
@@ -181,7 +193,8 @@ tsdfx_copy_remove(struct tsd_task *t)
 }
 
 /*
- * Prepare a copy task.
+ * Prepare a copy or purge task.
+ * Purge src if dst is NULL.
  */
 struct tsd_task *
 tsdfx_copy_new(const char *src, const char *dst)
@@ -191,6 +204,7 @@ tsdfx_copy_new(const char *src, const char *dst)
 	struct tsd_task *t = NULL;
 	struct stat st;
 	struct passwd *pw;
+	tsd_task_func *task;
 	int i, serrno;
 
 	/* check that the source exists */
@@ -207,23 +221,28 @@ tsdfx_copy_new(const char *src, const char *dst)
 	if ((ctd = calloc(1, sizeof *ctd)) == NULL)
 		goto fail;
 	if (strlcpy(ctd->src, src, sizeof ctd->src) >= sizeof ctd->src ||
-	    strlcpy(ctd->dst, dst, sizeof ctd->dst) >= sizeof ctd->dst) {
+	    (dst != NULL &&
+	     strlcpy(ctd->dst, dst, sizeof ctd->dst) >= sizeof ctd->dst)) {
 		errno = ENAMETOOLONG;
 		goto fail;
 	}
 
 	/* create task and set credentials */
 	tsdfx_copy_name(name, src, dst);
-	if ((t = tsd_task_create(name, tsdfx_copy_child, ctd)) == NULL)
+	if (dst != NULL)
+		task = tsdfx_copy_child;
+	else
+		task = tsdfx_copy_purgesource_child;
+	if ((t = tsd_task_create(name, task, ctd)) == NULL)
 		goto fail;
 	if ((pw = getpwuid(st.st_uid)) != NULL) {
-		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, dst);
+		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, src);
 		if (tsd_task_setuser(t, pw->pw_name) != 0)
 			goto fail;
 	} else {
 		VERBOSE("getpwuid(%lu) failed; setcred(%lu, %lu) for %s",
 		    (unsigned long)st.st_uid, (unsigned long)st.st_uid,
-		    (unsigned long)st.st_gid, dst);
+		    (unsigned long)st.st_gid, src);
 		if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
 			goto fail;
 	}
@@ -270,6 +289,26 @@ tsdfx_copy_delete(struct tsd_task *t)
 	tsdfx_copy_remove(t);
 	tsd_task_destroy(t);
 	free(ctd);
+}
+
+/*
+ * Remove old source files.
+ */
+static void
+tsdfx_copy_purgesource_child(void *ud)
+{
+	struct tsdfx_copy_task_data *ctd = ud;
+
+	/*
+	 * At this point, running as the owner of the file.
+	 */
+	if (-1 == remove(ctd->src)) {
+		/*
+		 * FIXME: this message do not make it into the log.
+		 */
+		fprintf(stderr, "failed to purge old source file %s: %s\n",
+			ctd->src, strerror(errno));
+	}
 }
 
 /*
@@ -394,20 +433,39 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *path)
 			return (-1);
 		}
 		/*
-		 * Attempt to avoid unnecessarily starting a
-		 * copier child for a file that's already been
-		 * copied.
-		 * XXX hack
+		 * Compare source and destination metadata to attempt
+		 * to avoid unnecessarily starting a copier child for
+		 * a file that's already been copied.
+		 * Remove old files and directories when they are
+		 * copied and untouched for the purge period.
 		 */
 		srcst.st_mode &= ~TSDFX_COPY_UMASK;
 		if (S_ISREG(srcst.st_mode) &&
 		    srcst.st_size == dstst.st_size &&
 		    srcst.st_mode == dstst.st_mode &&
-		    srcst.st_mtime == dstst.st_mtime)
+		    srcst.st_mtime == dstst.st_mtime) {
+			if (tsdfx_copy_purgeperiod &&
+			    srcst.st_atime + tsdfx_copy_purgeperiod <= time(0)) {
+				/*
+				 * Request removal.
+				 */
+				NOTICE("purging source file %s", srcpath);
+				tsdfx_copy_new(srcpath, NULL);
+			}
 			return (0);
+		}
 		if (S_ISDIR(srcst.st_mode) &&
-		    srcst.st_mode == dstst.st_mode)
+		    srcst.st_mode == dstst.st_mode) {
+			/*
+			 * Remove old and empty source directories too.
+			 */
+			if (tsdfx_copy_purgeperiod &&
+			    srcst.st_atime + tsdfx_copy_purgeperiod <= time(0)) {
+				NOTICE("purging source directory %s", srcpath);
+				tsdfx_copy_new(srcpath, NULL);
+			}
 			return (0);
+		}
 	} else {
 		memset(&dstst, 0, sizeof dstst);
 	}

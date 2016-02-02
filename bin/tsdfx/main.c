@@ -91,7 +91,7 @@ main(int argc, char *argv[])
 	pidfilename = PIDFILENAME;
 	pidfh = NULL;
 	nodaemon = 0;
-	while ((opt = getopt(argc, argv, "1C:fhl:m:np:S:vV")) != -1)
+	while ((opt = getopt(argc, argv, "1C:d:fhi:l:m:np:S:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
@@ -100,8 +100,17 @@ main(int argc, char *argv[])
 		case 'C':
 			tsdfx_copier = optarg;
 			break;
+		case 'd':
+			tsdfx_copy_purgeperiod = atoi(optarg);
+			break;
 		case 'f':
 			++nodaemon;
+			break;
+		case 'i':
+			tsdfx_scan_interval = atoi(optarg);
+			break;
+		case 'I':
+			tsdfx_reset_interval = atoi(optarg);
 			break;
 		case 'l':
 			logfile = optarg;

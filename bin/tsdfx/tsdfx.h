@@ -30,6 +30,8 @@
 #ifndef TSDFX_H_INCLUDED
 #define TSDFX_H_INCLUDED
 
+#include <time.h>
+
 #include <tsd/log.h>
 #define tsdfx_verbose tsd_log_verbose
 
@@ -45,5 +47,7 @@ extern const char *tsdfx_copier;
 
 extern unsigned int tsdfx_scan_interval;
 extern unsigned int tsdfx_reset_interval;
+
+extern time_t tsdfx_copy_purgeperiod;
 
 #endif
