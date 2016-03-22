@@ -198,6 +198,42 @@ tsd_task_setcred(struct tsd_task *t, uid_t uid, gid_t *gids, int ngids)
 }
 
 /*
+ * Set the task's effective GID to the given value, if and only if a) it
+ * matches the current effective GID or b) it is included in the task's
+ * current list of supplementary GIDs.
+ */
+int
+tsd_task_setegid(struct tsd_task *t, gid_t gid)
+{
+	int i;
+
+	if (t->state != TASK_IDLE) {
+		errno = EBUSY;
+		return (-1);
+	}
+	if (t->ngids < 1) {
+		/* no credentials set yet */
+		errno = EAGAIN;
+		return (-1);
+	}
+	if (t->gids[0] == gid) {
+		/* no-op */
+		return (0);
+	}
+	for (i = 1; i < t->ngids; ++i) {
+		if (gid == t->gids[i]) {
+			/* found it, switch with primary */
+			t->gids[i] = t->gids[0];
+			t->gids[0] = gid;
+			return (0);
+		}
+	}
+	/* requested GID is not in existing GID list */
+	errno = EACCES;
+	return (-1);
+}
+
+/*
  * Fork a child process and start a task inside it.
  *
  * XXX consider adding support for chroot
