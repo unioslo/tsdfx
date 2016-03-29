@@ -239,6 +239,11 @@ tsdfx_copy_new(const char *src, const char *dst)
 		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, src);
 		if (tsd_task_setuser(t, pw->pw_name) != 0)
 			goto fail;
+		if (tsd_task_setegid(t, st.st_gid) != 0) {
+			WARNING("%s: owner %lu (%s) is not in group %lu", src,
+			    (unsigned long)st.st_uid, pw->pw_name,
+			    (unsigned long)st.st_gid);
+		}
 	} else {
 		VERBOSE("getpwuid(%lu) failed; setcred(%lu, %lu) for %s",
 		    (unsigned long)st.st_uid, (unsigned long)st.st_uid,

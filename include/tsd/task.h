@@ -108,6 +108,7 @@ struct tsd_tqueue {
 struct tsd_task *tsd_task_create(const char *, tsd_task_func *, void *);
 int tsd_task_setuser(struct tsd_task *, const char *);
 int tsd_task_setcred(struct tsd_task *, uid_t, gid_t *, int);
+int tsd_task_setegid(struct tsd_task *, gid_t);
 void tsd_task_destroy(struct tsd_task *);
 int tsd_task_start(struct tsd_task *);
 int tsd_task_stop(struct tsd_task *);
