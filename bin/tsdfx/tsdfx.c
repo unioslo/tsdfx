@@ -47,6 +47,24 @@ static volatile sig_atomic_t sighup;
 static volatile sig_atomic_t killed;
 
 /*
+ * Signals to be either caught or ignored
+ */
+static struct {
+	int sig;
+	void (*old)(int);
+} signals[] = {
+	{ .sig = SIGHUP },
+	{ .sig = SIGINT },
+	{ .sig = SIGQUIT },
+	{ .sig = SIGPIPE },
+	{ .sig = SIGALRM },
+	{ .sig = SIGTERM },
+	{ .sig = SIGUSR1 },
+	{ .sig = SIGUSR2 },
+	{ .sig = 0 },
+};
+
+/*
  * Signal handler
  */
 static void
@@ -58,11 +76,13 @@ signal_handler(int sig)
 		++sighup;
 		break;
 	case SIGINT:
+	case SIGQUIT:
+	case SIGPIPE:
 	case SIGTERM:
 		killed = sig;
 		break;
 	default:
-		/* nothing */;
+		/* ignore other signals*/;
 	}
 }
 
@@ -85,6 +105,9 @@ tsdfx_init(const char *mapfile)
 	return (0);
 }
 
+/*
+ * Cleanup
+ */
 int
 tsdfx_exit(void)
 {
@@ -98,14 +121,12 @@ tsdfx_exit(void)
 int
 tsdfx_run(const char *mapfile)
 {
-	void (*oldsighup)(int);
-	void (*oldsigint)(int);
-	void (*oldsigterm)(int);
 	int scan_running, copy_running;
+	unsigned int i;
 
-	oldsighup = signal(SIGHUP, signal_handler);
-	oldsigint = signal(SIGINT, signal_handler);
-	oldsigterm = signal(SIGTERM, signal_handler);
+	killed = 0;
+	for (i = 0; signals[i].sig != 0; ++i)
+		signals[i].old = signal(signals[i].sig, signal_handler);
 	while (!killed) {
 		/* check for sighup */
 		if (sighup) {
@@ -129,12 +150,11 @@ tsdfx_run(const char *mapfile)
 
 		usleep(100 * 1000);
 	}
-	signal(SIGTERM, oldsigterm);
-	signal(SIGINT, oldsigint);
-	signal(SIGHUP, oldsighup);
 	if (killed)
 		VERBOSE("received signal %d", (int)killed);
 	else
 		VERBOSE("all work completed in one-shot mode");
+	for (i = 0; signals[i].sig != 0; ++i)
+		signal(signals[i].sig, signals[i].old);
 	return (killed);
 }
