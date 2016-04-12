@@ -361,6 +361,7 @@ tsdfx_copy_child(void *ud)
 	/* XXX should clean the environment */
 	execv(tsdfx_copier, (char *const *)(uintptr_t)argv);
 	ERROR("failed to execute copier process");
+	_exit(1);
 }
 
 /*
