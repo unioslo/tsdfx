@@ -614,8 +614,11 @@ tsdfx_scan_poll(struct tsd_task *t)
 			/* yes, let's get it */
 			if ((ret = tsdfx_scan_slurp(t)) < 0) {
 				/* error in slurp(), kill task and bail */
-				if (tsdfx_scan_stop(t) == 0)
+				if (tsdfx_scan_stop(t) == 0) {
+					WARNING("scan task %ld failed for %s",
+					    (long)t->pid, std->path);
 					t->state = TASK_FAILED;
+				}
 				break;
 			}
 			if (ret > 0)
@@ -625,8 +628,11 @@ tsdfx_scan_poll(struct tsd_task *t)
 			/* yes, let's get it */
 			if ((ret = tsdfx_scan_slurp_stderr(t)) < 0) {
 				/* error in slurp(), kill task and bail */
-				if (tsdfx_scan_stop(t) == 0)
+				if (tsdfx_scan_stop(t) == 0) {
+					WARNING("scan task %ld failed for %s",
+					    (long)t->pid, std->path);
 					t->state = TASK_FAILED;
+				}
 				break;
 			}
 			if (ret > 0)
@@ -688,22 +694,28 @@ tsdfx_scan_sched(void)
 		case TASK_IDLE:
 			/* see if the task is due to start again */
 			if (tsdfx_scan_tasks->nrunning < tsdfx_scan_max_tasks &&
-			    now >= std->nextrun && tsdfx_scan_start(t) != 0)
-				WARNING("failed to start t: %s",
+			    now >= std->nextrun && tsdfx_scan_start(t) != 0) {
+				WARNING("failed to start task: %s",
 				    strerror(errno));
+			}
 			break;
 		case TASK_RUNNING:
 			/* see if there is any output waiting */
 			tsdfx_scan_poll(t);
 			break;
 		case TASK_FINISHED:
+			/* completed successfully */
 			tsdfx_scan_reset(t);
 			break;
 		case TASK_DEAD:
 		case TASK_FAILED:
 		case TASK_INVALID:
-			if (now >= std->lastran + tsdfx_reset_interval)
+			/* failed to start or died */
+			if (now >= std->lastran + tsdfx_reset_interval) {
+				NOTICE("resetting failed scan task for %s",
+				    std->path);
 				tsdfx_scan_reset(t);
+			}
 			break;
 		case TASK_STOPPED:
 			/* shouldn't happen */
