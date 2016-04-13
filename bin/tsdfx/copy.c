@@ -361,6 +361,7 @@ tsdfx_copy_child(void *ud)
 	/* XXX should clean the environment */
 	execv(tsdfx_copier, (char *const *)(uintptr_t)argv);
 	ERROR("failed to execute copier process");
+	_exit(1);
 }
 
 /*
@@ -486,15 +487,16 @@ tsdfx_copy_wrap(const char *srcdir, const char *dstdir, const char *path)
 int
 tsdfx_copy_sched(void)
 {
+	struct tsdfx_copy_task_data *ctd;
 	struct tsd_task *t, *tn;
 
 	t = tsd_tset_first(tsdfx_copy_tasks);
 	while (t != NULL) {
 		/* look ahead so we can safely delete dead tasks */
 		tn = tsd_tset_next(t->set, t);
+		ctd = t->ud;
 		switch (t->state) {
 		case TASK_IDLE: {
-			struct tsdfx_copy_task_data *ctd = t->ud;
 			VERBOSE("%s -> %s (%d jobs, %d running)",
 				ctd->src, ctd->dst,
 				t->queue->ntasks, t->queue->nrunning);
@@ -504,10 +506,20 @@ tsdfx_copy_sched(void)
 		case TASK_RUNNING:
 			tsdfx_copy_poll(t);
 			break;
-		case TASK_STOPPED:
-		case TASK_DEAD:
 		case TASK_FINISHED:
+			/* completed successfully */
+			tsdfx_copy_delete(t);
+			break;
+		case TASK_DEAD:
 		case TASK_FAILED:
+		case TASK_INVALID:
+			/* failed to start or died */
+			WARNING("copy task failed for %s", ctd->src);
+			tsdfx_copy_delete(t);
+			break;
+		case TASK_STOPPED:
+			/* shouldn't happen */
+			ERROR("copy task in TASK_STOPPED state");
 			tsdfx_copy_delete(t);
 			break;
 		default:
