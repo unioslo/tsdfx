@@ -49,6 +49,7 @@
 #include <tsd/sbuf.h>
 #include <tsd/strutil.h>
 #include <tsd/percent.h>
+#include <tsd/tictoc.h>
 
 struct scan_entry {
 	struct sbuf *path;
@@ -312,19 +313,26 @@ tsdfx_scanner(const char *path)
 {
 	struct scan_entry *se;
 	int serrno;
+	long nfiles;
+
+	nfiles = 0;
 
 	if (tsdfx_scan_init(path) != 0)
 		return (-1);
+	tsd_tic();
 	while ((se = tsdfx_scan_next()) != NULL) {
 		if (tsdfx_scan_process_directory(se->path) != 0) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup();
 			errno = serrno;
+			tsd_toc("FAILED scanning %s", se->path);
 			return (-1);
 		}
+		nfiles++;
 	}
 	ASSERT(scan_todo == NULL && scan_tail == NULL);
+	tsd_toc("scanning %li files in %s", nfiles, path);
 	tsdfx_scan_cleanup();
 	return (0);
 }

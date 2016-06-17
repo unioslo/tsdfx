@@ -17,6 +17,7 @@ libtsd_la_SOURCES += tsd_strlcpy.c
 libtsd_la_SOURCES += tsd_task.c
 libtsd_la_SOURCES += tsd_task_queue.c
 libtsd_la_SOURCES += tsd_task_set.c
+libtsd_la_SOURCES += tsd_tictoc.c
 
 dist_man3_MANS =
 dist_man3_MANS += tsd_hash.3
