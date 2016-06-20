@@ -127,7 +127,7 @@ tsdfx_recentlog_log(struct tsdfx_recentlog *r, const char *msg)
 	}
 
 	/* Next print log queue, while removing obsolete entries */
-	WARNING("updating user visible log file");
+	VERBOSE("updating user visible log file");
 	/* FIXME write to logfile.new and rename */
 	fh = fopen(r->logfile, "w");
 	if (fh == NULL) {
