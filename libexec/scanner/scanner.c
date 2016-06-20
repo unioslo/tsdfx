@@ -375,8 +375,6 @@ main(int argc, char *argv[])
 	if (argc != 1)
 		usage();
 
-
-
 	tsd_log_init("tsdfx-scanner", logfile);
 	tsd_log_userlog(userlog);
 
