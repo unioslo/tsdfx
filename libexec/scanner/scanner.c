@@ -49,11 +49,15 @@
 #include <tsd/sbuf.h>
 #include <tsd/strutil.h>
 #include <tsd/percent.h>
+#include <tsd/timer.h>
 
 struct scan_entry {
 	struct sbuf *path;
 	struct scan_entry *next;
 };
+
+/* record number of stated files for diagnostic purposes */
+static long n_stated_files=0;
 
 /*
  * Worklist
@@ -204,6 +208,9 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 		return (-1);
 	}
 
+	/* record number of stated files for diagnostic purposes */
+	n_stated_files++;
+	
 	/* full path */
 	if ((path = sbuf_new_auto()) == NULL ||
 	    sbuf_printf(path, "%s/%s", sbuf_data(parent), de->d_name) != 0 ||
@@ -315,16 +322,19 @@ tsdfx_scanner(const char *path)
 
 	if (tsdfx_scan_init(path) != 0)
 		return (-1);
+	tsd_timer_start();
 	while ((se = tsdfx_scan_next()) != NULL) {
 		if (tsdfx_scan_process_directory(se->path) != 0) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup();
 			errno = serrno;
+			VERBOSE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, tsd_timer_stop());
 			return (-1);
 		}
 	}
 	ASSERT(scan_todo == NULL && scan_tail == NULL);
+	VERBOSE("scanner stated %li dir entries, measured time: %.3lf s", n_stated_files, path, tsd_timer_stop());
 	tsdfx_scan_cleanup();
 	return (0);
 }
