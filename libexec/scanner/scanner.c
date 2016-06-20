@@ -369,7 +369,7 @@ main(int argc, char *argv[])
 	tsd_log_userlog(userlog);
 
 	if (getuid() == 0 || geteuid() == 0)
-		WARNING("running as root");
+		WARNING("running as root for %s", argv[0]);
 
 	if (tsdfx_scanner(argv[0]) != 0)
 		exit(1);
