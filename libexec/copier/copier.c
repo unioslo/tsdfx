@@ -164,10 +164,10 @@ copyfile_open(const char *fn, int mode, int perm)
 		/* otherwise, create it */
 		if (isdir) {
 			if (mkdir(cf->name, perm) != 0) {
-				ERROR("%s: mkdir(): %s", cf->name, strerror(errno));
+				ERROR("%s: mkdir(..., %04o): %s", cf->name, perm, strerror(errno));
 				goto fail;
 			}
-			NOTICE("created directory %s", cf->name);
+			NOTICE("created directory %s (perm %04o)", cf->name, perm);
 			if ((cf->fd = open(fn, cf->mode)) < 0)
 				goto fail;
 		} else {
