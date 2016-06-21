@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <tsd/assert.h>
@@ -252,9 +253,9 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 {
 	DIR *dir;
 	struct dirent *de;
-	int dd, ret, serrno;
+	int dd, processed, serrno;
 
-	ret = 0;
+	processed = 0;
 	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0) {
 		if (errno == ENOENT) {
 			VERBOSE("%s disappeared", sbuf_data(path));
@@ -270,7 +271,7 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 		ERROR("%s: %s", sbuf_data(path), strerror(errno));
 		return (-1);
 	}
-	while (ret == 0 && (de = readdir(dir)) != NULL) {
+	while (processed != -1 && (de = readdir(dir)) != NULL) {
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
 			continue;
@@ -291,12 +292,14 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			continue;
 		}
 		if (tsdfx_process_dirent(path, dd, de) != 0)
-			ret = -1;
+			processed = -1;
+		else
+			processed++;
 	}
 	serrno = errno;
 	closedir(dir);
 	errno = serrno;
-	return (ret);
+	return (processed);
 }
 
 /*
@@ -311,20 +314,32 @@ int
 tsdfx_scanner(const char *path)
 {
 	struct scan_entry *se;
-	int serrno;
+	int processed, serrno;
+	struct timespec timer_end, timer_start;
 
+	processed = 0;
 	if (tsdfx_scan_init(path) != 0)
 		return (-1);
+
+#define ELAPSED(start, end) ((double)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/(double)1e9))
+	clock_gettime(CLOCK_MONOTONIC, &timer_start);
+
 	while ((se = tsdfx_scan_next()) != NULL) {
-		if (tsdfx_scan_process_directory(se->path) != 0) {
+		processed = tsdfx_scan_process_directory(se->path);
+		if (processed == -1) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup();
 			errno = serrno;
+			clock_gettime(CLOCK_MONOTONIC, &timer_end);
+			NOTICE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
 			return (-1);
 		}
 	}
+	clock_gettime(CLOCK_MONOTONIC, &timer_end);
 	ASSERT(scan_todo == NULL && scan_tail == NULL);
+	NOTICE("scanner stated %li dir entries, measured time: %.3lf s",
+	       processed, path, ELAPSED(timer_start, timer_end));
 	tsdfx_scan_cleanup();
 	return (0);
 }
