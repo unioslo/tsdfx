@@ -531,7 +531,6 @@ tsdfx_scan_slurp_stderr(struct tsd_task *t)
 	ssize_t rlen;
 	char *buf, *end, *p, *q;
 
-	WARNING("Reading from stderr");
 	/* read as much as we can in the space we have left */
 	len = 0;
 	do {
@@ -561,7 +560,6 @@ tsdfx_scan_slurp_stderr(struct tsd_task *t)
 			break;
 		*q++ = '\0';
 		tsdfx_map_log(std->map, p);
-		ERROR("%s", p);
 	}
 
 	/*
