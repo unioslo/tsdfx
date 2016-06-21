@@ -38,6 +38,9 @@ AC_CHECK_HEADERS([bsd/stdlib.h bsd/unistd.h])
 AC_SEARCH_LIBS([setproctitle], [bsd])
 AC_CHECK_FUNCS([setproctitle_init setproctitle])
 
+AC_SEARCH_LIBS([clock_gettime], [rt])
+AC_CHECK_FUNCS([clock_gettime])
+
 # hole detection
 AC_CHECK_DECLS([SEEK_HOLE])
 

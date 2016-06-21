@@ -6,7 +6,8 @@ TESTS = \
 	test-pidfile.sh \
 	test-purgesource.sh \
 	test-scanner-boundary.sh \
-	test-simplecopy.sh
+	test-simplecopy.sh \
+	test-timing.sh
 
 EXTRA_DIST = \
 	$(TESTS) \
