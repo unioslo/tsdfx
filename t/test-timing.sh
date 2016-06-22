@@ -6,6 +6,10 @@ setup_test
 
 echo test1 > "${srcdir}/test1"
 echo test2 > "${srcdir}/test2"
+mkdir "${srcdir}/subdir1"
+echo test3 > "${srcdir}/subdir1/test3"
+mkdir "${srcdir}/subdir2"
+echo test4 > "${srcdir}/subdir2/test4"
 
 # the below does not work - d is created in dstdir,
 # but test3 is not copied because of permission error
@@ -25,7 +29,7 @@ while ! grep -q tsdfx_scan_stop "${logfile}" ; do
 	sleep 1
 done
 
-if ! grep -q 'scanner stated 2 dir entries' "${logfile}" ; then
+if ! grep -q 'scanner stated 6 dir entries' "${logfile}" ; then
         fail_test "timing tests failed - unexpected number of stated files."
 fi
 
