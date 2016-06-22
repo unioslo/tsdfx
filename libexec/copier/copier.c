@@ -109,7 +109,7 @@ signal_handler(int sig)
 		killed = sig;
 }
 
-/* open a file and populate the state structure */
+/* open a file or directory and populate the state structure */
 static struct copyfile *
 copyfile_open(const char *fn, int mode, int perm)
 {
@@ -494,10 +494,12 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 	/* what's my umask? */
 	umask(mumask = umask(0));
 
-	/* open source and destination files */
+	/* open source and destination files / directories */
 	src = dst = NULL;
-	if ((src = copyfile_open(srcfn, O_RDONLY, 0)) == NULL ||
-	    (dst = copyfile_open(dstfn, O_RDWR|O_CREAT, 0600)) == NULL)
+	if ((src = copyfile_open(srcfn, O_RDONLY, 0)) == NULL)
+		goto fail;
+	if ((dst = copyfile_open(dstfn, O_RDWR|O_CREAT,
+				 copyfile_isdir(src) ? 0700 : 0600)) == NULL)
 		goto fail;
 
 	/* check that they are both the same type */
