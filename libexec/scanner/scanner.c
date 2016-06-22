@@ -314,7 +314,7 @@ int
 tsdfx_scanner(const char *path)
 {
 	struct scan_entry *se;
-	int processed, serrno;
+	int processed, subprocessed, serrno;
 	struct timespec timer_end, timer_start;
 
 	processed = 0;
@@ -325,8 +325,8 @@ tsdfx_scanner(const char *path)
 	clock_gettime(CLOCK_MONOTONIC, &timer_start);
 
 	while ((se = tsdfx_scan_next()) != NULL) {
-		processed = tsdfx_scan_process_directory(se->path);
-		if (processed == -1) {
+		subprocessed = tsdfx_scan_process_directory(se->path);
+		if (subprocessed == -1) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup();
@@ -335,6 +335,7 @@ tsdfx_scanner(const char *path)
 			NOTICE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
 			return (-1);
 		}
+		processed += subprocessed;
 	}
 	clock_gettime(CLOCK_MONOTONIC, &timer_end);
 	ASSERT(scan_todo == NULL && scan_tail == NULL);
