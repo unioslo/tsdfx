@@ -332,14 +332,14 @@ tsdfx_scanner(const char *path)
 			tsdfx_scan_cleanup();
 			errno = serrno;
 			clock_gettime(CLOCK_MONOTONIC, &timer_end);
-			NOTICE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
+			VERBOSE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
 			return (-1);
 		}
 		processed += subprocessed;
 	}
 	clock_gettime(CLOCK_MONOTONIC, &timer_end);
 	ASSERT(scan_todo == NULL && scan_tail == NULL);
-	NOTICE("scanner stated %li dir entries, measured time: %.3lf s",
+	VERBOSE("found %li dir entries, measured time: %.3lf s",
 	       processed, path, ELAPSED(timer_start, timer_end));
 	tsdfx_scan_cleanup();
 	return (0);

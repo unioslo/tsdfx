@@ -29,7 +29,7 @@ while ! grep -q tsdfx_scan_stop "${logfile}" ; do
 	sleep 1
 done
 
-if ! grep -q 'scanner stated 6 dir entries' "${logfile}" ; then
+if ! grep -q 'found 6 dir entries' "${logfile}" ; then
         fail_test "timing tests failed - unexpected number of stated files."
 fi
 

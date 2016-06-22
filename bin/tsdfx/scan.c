@@ -92,6 +92,10 @@ struct tsdfx_scan_task_data {
 
 	/* error messages */
 	struct tsdfx_scan_task_databuf stderr;
+
+	/* counters */
+	int processed;
+	struct timespec timer_start;
 };
 
 /*
@@ -333,6 +337,10 @@ tsdfx_scan_start(struct tsd_task *t)
 {
 	struct tsdfx_scan_task_data *std = t->ud;
 
+	/* set counters */
+	std->processed = 0;
+	clock_gettime(CLOCK_MONOTONIC, &std->timer_start);
+
 	VERBOSE("%s", std->path);
 	if (t->state != TASK_RUNNING && tsd_task_start(t) != 0)
 		return (-1);
@@ -402,6 +410,10 @@ tsdfx_scan_reset(struct tsd_task *t)
 	std->stdin.buflen = 0;
 	std->stderr.buf[0] = '\0';
 	std->stderr.buflen = 0;
+
+	/* clear counters */
+	std->processed = 0;
+	clock_gettime(CLOCK_MONOTONIC, &std->timer_start);
 
 	/* check that it's still there */
 	if (stat(std->path, &st) != 0) {
@@ -500,6 +512,7 @@ tsdfx_scan_slurp(struct tsd_task *t)
 			continue;
 		}
 		VERBOSE("[%s]", p);
+		std->processed++;
 		tsdfx_map_process(std->map, p);
 	}
 
@@ -680,6 +693,7 @@ tsdfx_scan_sched(void)
 {
 	struct tsdfx_scan_task_data *std;
 	struct tsd_task *t, *tn;
+	struct timespec timer_end;
 	time_t now;
 
 	time(&now);
@@ -703,6 +717,14 @@ tsdfx_scan_sched(void)
 			break;
 		case TASK_FINISHED:
 			/* completed successfully */
+
+			/* report scan duration */
+#define ELAPSED(start, end) ((double)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/(double)1e9))
+			clock_gettime(CLOCK_MONOTONIC, &timer_end);
+			NOTICE("in %s found %li dir entries, measured time: %.3lf s",
+			       std->path, std->processed,
+			       ELAPSED(std->timer_start, timer_end));
+
 			tsdfx_scan_reset(t);
 			break;
 		case TASK_DEAD:
