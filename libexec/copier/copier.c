@@ -373,7 +373,7 @@ static int
 copyfile_finish(struct copyfile *cf)
 {
 	struct timeval times[2];
-	int mode;
+	mode_t mode;
 
 	gettimeofday(&cf->tvf, NULL);
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
@@ -384,7 +384,7 @@ copyfile_finish(struct copyfile *cf)
 		}
 		mode = (cf->st.st_mode & 07777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
-		if (fchmod(cf->fd, mode) != 0) {
+		if (mode != cf->st.st_mode && fchmod(cf->fd, mode) != 0) {
 			ERROR("%s: fchmod(%04o): %s", cf->name, mode, strerror(errno));
 			return (-1);
 		}
