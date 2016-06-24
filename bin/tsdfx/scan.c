@@ -721,7 +721,7 @@ tsdfx_scan_sched(void)
 			/* report scan duration */
 #define ELAPSED(start, end) ((double)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/(double)1e9))
 			clock_gettime(CLOCK_MONOTONIC, &timer_end);
-			NOTICE("in %s found %li dir entries, measured time: %.3lf s",
+			VERBOSE("in %s found %li dir entries, measured time: %.3lf s",
 			       std->path, std->processed,
 			       ELAPSED(std->timer_start, timer_end));
 
