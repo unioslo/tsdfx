@@ -8,14 +8,13 @@
 
 setup_test
 
-
 mkdir -m 755 "${srcdir}/d"
 if ! $copier "${srcdir}/d/" "${dstdir}/d/" > ${logfile} ; then
     fail_test "copier returned failure when copying directories"
 fi
 
-dstmode=$(stat -c %a "${dstdir}/d")
-if [ 755 != "$dstmode" ] ; then
+dstmode=$(stat -f%p "${dstdir}/d" || stat -c%a "${dstdir}/d") 2>/dev/null
+if [ 755 != $((dstmode % 1000)) ] ; then
     fail_test "directory created with wrong access mode"
 fi
 
