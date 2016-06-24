@@ -168,7 +168,14 @@ copyfile_open(const char *fn, int mode, int perm)
 				goto fail;
 			}
 			NOTICE("created directory %s (perm %04o)", cf->name, perm);
-			if ((cf->fd = open(fn, cf->mode)) < 0)
+			/*
+			 * open() on Linux reject directories with
+			 * O_CREAT, even if the directory already
+			 * exist.
+			 */
+			mode = mode & ~O_CREAT;
+
+			if ((cf->fd = open(fn, mode)) < 0)
 				goto fail;
 		} else {
 			if ((cf->fd = open(cf->name, mode, perm)) < 0) {

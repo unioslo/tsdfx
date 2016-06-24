@@ -1,4 +1,5 @@
 TESTS = \
+	test-copier.sh \
 	test-copy-classes.sh \
 	test-file-hole.sh \
 	test-inaccessible-dir.sh \
