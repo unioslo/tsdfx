@@ -302,7 +302,7 @@ tsdfx_scan_child(void *ud)
 	/* change into the target directory, chroot if possible */
 	// XXX chroot code removed, move this into tsd_task_start()
 	if (chdir(std->path) != 0) {
-		ERROR("%s: %s", std->path, strerror(errno));
+		ERROR("chdir(%s): %s", std->path, strerror(errno));
 		_exit(1);
 	}
 
