@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
+#include <pwd.h>
 #include <regex.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -215,6 +216,7 @@ struct tsd_task *
 tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 {
 	char name[NAME_MAX];
+	struct passwd *pw;
 	struct tsdfx_scan_task_data *std = NULL;
 	struct tsd_task *t = NULL;
 	struct stat st;
@@ -259,8 +261,24 @@ tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 		goto fail;
 	//t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE;
 	t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE | TASK_STDERR_PIPE;
-	if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
-		goto fail;
+
+	/* Run with user group membership combined with file gid */
+	if ((pw = getpwuid(st.st_uid)) != NULL) {
+		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, path);
+		if (tsd_task_setuser(t, pw->pw_name) != 0)
+			goto fail;
+		if (tsd_task_setegid(t, st.st_gid) != 0) {
+			WARNING("%s: owner %lu (%s) is not in group %lu", path,
+			    (unsigned long)st.st_uid, pw->pw_name,
+			    (unsigned long)st.st_gid);
+		}
+	} else {
+		VERBOSE("getpwuid(%lu) failed; setcred(%lu, %lu) for %s",
+		    (unsigned long)st.st_uid, (unsigned long)st.st_uid,
+		    (unsigned long)st.st_gid, path);
+		if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
+			goto fail;
+	}
 	if (tsdfx_scan_add(t) != 0)
 		goto fail;
 	return (t);
