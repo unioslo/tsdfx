@@ -1,0 +1,12 @@
+Hacking the tsdfx
+=================
+
+Here are some tips for those that want to hack on the tsdfx source.
+
+The code is following the FreeBSD coding style.  Please make yourself
+familiar with
+<URL: http://docs.freebsd.org/info/gdbint/gdbint.info.Coding_Style.html >
+and use the same style for all submitted patches.
+
+We prefer patches sent as pull requests via
+<URL: https://github.com/unioslo/tsdfx/pulls >.
