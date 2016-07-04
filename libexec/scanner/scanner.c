@@ -51,6 +51,8 @@
 #include <tsd/strutil.h>
 #include <tsd/percent.h>
 
+static long maxfiles = 10000;
+
 struct scan_entry {
 	struct sbuf *path;
 	struct scan_entry *next;
@@ -61,6 +63,11 @@ struct scanpath {
 	 * Worklist
 	 */
 	struct scan_entry *todo, *tail;
+
+	/*
+	 * Track number of entries found and when to stop.
+	 */
+	long processed;
 };
 
 /*
@@ -140,6 +147,7 @@ tsdfx_scan_init(const char *root)
 	    sbuf_finish(se->path) != 0)
 		goto fail;
 	sp->todo = sp->tail = se;
+	sp->processed = 0;
 	return (sp);
 fail:
 	tsdfx_scan_free(se);
@@ -264,9 +272,9 @@ tsdfx_scan_process_directory(struct scanpath *sp, const struct sbuf *path)
 {
 	DIR *dir;
 	struct dirent *de;
-	int dd, processed, serrno;
+	int dd, ret, serrno;
 
-	processed = 0;
+	ret = 0;
 	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0) {
 		if (errno == ENOENT) {
 			VERBOSE("%s disappeared", sbuf_data(path));
@@ -282,7 +290,7 @@ tsdfx_scan_process_directory(struct scanpath *sp, const struct sbuf *path)
 		ERROR("%s: %s", sbuf_data(path), strerror(errno));
 		return (-1);
 	}
-	while (processed != -1 && (de = readdir(dir)) != NULL) {
+	while (ret == 0 && (de = readdir(dir)) != NULL) {
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
 			continue;
@@ -303,14 +311,19 @@ tsdfx_scan_process_directory(struct scanpath *sp, const struct sbuf *path)
 			continue;
 		}
 		if (tsdfx_process_dirent(sp, path, dd, de) != 0)
-			processed = -1;
-		else
-			processed++;
+			ret = -1;
+		else {
+			sp->processed++;
+			if (0 != maxfiles && sp->processed >= maxfiles) {
+				USERERROR("too many files in source, please reduce file count using zip/tar.");
+				ret = -1;
+			}
+		}
 	}
 	serrno = errno;
 	closedir(dir);
 	errno = serrno;
-	return (processed);
+	return (ret);
 }
 
 /*
@@ -326,10 +339,9 @@ tsdfx_scanner(const char *path)
 {
 	struct scan_entry *se;
 	struct scanpath *sp;
-	int processed, subprocessed, serrno;
+	int serrno;
 	struct timespec timer_end, timer_start;
 
-	processed = 0;
 	if ((sp = tsdfx_scan_init(path)) == NULL)
 		return (-1);
 
@@ -337,8 +349,7 @@ tsdfx_scanner(const char *path)
 	clock_gettime(CLOCK_MONOTONIC, &timer_start);
 
 	while ((se = tsdfx_scan_next(sp)) != NULL) {
-		subprocessed = tsdfx_scan_process_directory(sp, se->path);
-		if (subprocessed == -1) {
+		if (tsdfx_scan_process_directory(sp, se->path) != 0) {
 			serrno = errno;
 			tsdfx_scan_free(se);
 			tsdfx_scan_cleanup(sp);
@@ -347,12 +358,11 @@ tsdfx_scanner(const char *path)
 			VERBOSE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
 			return (-1);
 		}
-		processed += subprocessed;
 	}
 	clock_gettime(CLOCK_MONOTONIC, &timer_end);
 	ASSERT(sp->todo == NULL && sp->tail == NULL);
 	VERBOSE("found %li dir entries, measured time: %.3lf s",
-	       processed, path, ELAPSED(timer_start, timer_end));
+	       sp->processed, path, ELAPSED(timer_start, timer_end));
 	tsdfx_scan_cleanup(sp);
 	sp = NULL;
 	return (0);
@@ -362,24 +372,32 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-scanner [-v] [-l logname] path\n");
+	fprintf(stderr, "usage: tsdfx-scanner [-v] [-l logname] [-m maxfiles] path\n");
 	exit(1);
 }
 
 int
 main(int argc, char *argv[])
 {
+	char *end;
 	const char *logfile, *userlog;
 	int opt;
 
 	logfile = userlog = NULL;
-	while ((opt = getopt(argc, argv, "hl:v")) != -1)
+	while ((opt = getopt(argc, argv, "hl:m:v")) != -1)
 		switch (opt) {
 		case 'l':
 			if (strncmp(optarg, ":user=", 6) == 0)
 				userlog = optarg + 6;
 			else
 				logfile = optarg;
+			break;
+		case 'm':
+			maxfiles = strtol(optarg, &end, 10);
+			if (end == optarg || *end != '\0' || maxfiles < 0) {
+				fprintf(stderr, "unable to parse scan limit");
+				usage();
+			}
 			break;
 		case 'v':
 			++tsd_log_verbose;
