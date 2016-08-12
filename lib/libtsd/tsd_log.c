@@ -155,7 +155,7 @@ static void
 tsd_log_closelog(char **fnp, FILE **fp)
 {
 
-	if (*fp != NULL)
+	if (*fp != NULL && stderr != *fp)
 		fclose(*fp);
 	fp = NULL;
 	if (*fnp != NULL)
@@ -173,12 +173,14 @@ tsd_log_initlog(char **fnp, FILE **fp, const char *logspec)
 	FILE *f;
 	int serrno;
 
+	f = NULL;
 	if (logspec == NULL || *logspec == '\0') {
 		errno = ENOENT;
 		return (-1);
 	}
 	if (strcmp(logspec, ":stderr") == 0) {
 		logspec = "/dev/stderr";
+		f = stderr;
 	} else if (logspec[0] == ':') {
 		errno = EINVAL;
 		return (-1);
@@ -186,7 +188,7 @@ tsd_log_initlog(char **fnp, FILE **fp, const char *logspec)
 	if ((fn = strdup(logspec)) == NULL) {
 		return (-1);
 	}
-	if ((f = fopen(logspec, "a")) == NULL) {
+	if (f == NULL && (f = fopen(logspec, "a")) == NULL) {
 		serrno = errno;
 		free(fn);
 		errno = serrno;
