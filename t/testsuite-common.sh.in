@@ -21,6 +21,7 @@ notice() {
 
 setup_test() {
 	set -e
+	umask 022
 
 	source="@abs_top_srcdir@"
 
