@@ -11,7 +11,7 @@ x() {
 
 mode() {
 	local mode
-	mode=$(stat --printf %a "$1" || stat -f%p "$1") 2>/dev/null
+	mode=$(stat -c%a "$1" || stat -f%p "$1") 2>/dev/null
 	echo 0$((mode % 1000))
 }
 
@@ -60,7 +60,7 @@ set_blocksize() {
 		fi
 		dd if=/dev/zero of="${bsfile}" bs=1048576 count=1
 	fi
-	blocksize=$(stat -f%k "${bsfile}" || stat -c%o "${bsfile}") 2>/dev/null
+	blocksize=$(stat -c%o "${bsfile}" || stat -f%k "${bsfile}") 2>/dev/null
 	if [ "${bsfile}" != "$1" ] ; then
 		rm "${bsfile}"
 	fi
