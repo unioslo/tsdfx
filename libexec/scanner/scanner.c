@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <tsd/assert.h>
@@ -55,10 +56,12 @@ struct scan_entry {
 	struct scan_entry *next;
 };
 
-/*
- * Worklist
- */
-static struct scan_entry *scan_todo, *scan_tail;
+struct scanpath {
+	/*
+	 * Worklist
+	 */
+	struct scan_entry *todo, *tail;
+};
 
 /*
  * Free a worklist entry.  Save and restore errno to facilitate use in
@@ -82,7 +85,7 @@ tsdfx_scan_free(struct scan_entry *se)
  * Append a directory to the worklist.
  */
 static struct scan_entry *
-tsdfx_scan_append(const struct sbuf *path)
+tsdfx_scan_append(struct scanpath *sp, const struct sbuf *path)
 {
 	struct scan_entry *se;
 
@@ -92,10 +95,10 @@ tsdfx_scan_append(const struct sbuf *path)
 	    sbuf_cpy(se->path, sbuf_data(path)) == -1 ||
 	    sbuf_finish(se->path) == -1)
 		goto fail;
-	if (scan_todo == NULL)
-		scan_todo = scan_tail = se;
+	if (sp->todo == NULL)
+		sp->todo = sp->tail = se;
 	else
-		scan_tail = scan_tail->next = se;
+		sp->tail = sp->tail->next = se;
 	return (se);
 fail:
 	tsdfx_scan_free(se);
@@ -106,14 +109,14 @@ fail:
  * Remove and return the next entry from the worklist.
  */
 static struct scan_entry *
-tsdfx_scan_next(void)
+tsdfx_scan_next(struct scanpath *sp)
 {
 	struct scan_entry *se;
 
-	if ((se = scan_todo) != NULL) {
-		if ((scan_todo = se->next) == NULL) {
-			ASSERT(scan_tail == se);
-			scan_tail = NULL;
+	if ((se = sp->todo) != NULL) {
+		if ((sp->todo = se->next) == NULL) {
+			ASSERT(sp->tail == se);
+			sp->tail = NULL;
 		}
 	}
 	return (se);
@@ -122,41 +125,50 @@ tsdfx_scan_next(void)
 /*
  * Initialize the worklist and file list.
  */
-static int
+static struct scanpath *
 tsdfx_scan_init(const char *root)
 {
 	struct scan_entry *se;
+	struct scanpath *sp;
 
+	if ((sp = calloc(1, sizeof *sp)) == NULL)
+		return (NULL);
 	if ((se = calloc(1, sizeof *se)) == NULL)
-		return (-1);
+		goto fail;
 	if ((se->path = sbuf_new_auto()) == NULL ||
 	    sbuf_cpy(se->path, root) != 0 ||
 	    sbuf_finish(se->path) != 0)
 		goto fail;
-	scan_todo = scan_tail = se;
-	return (0);
+	sp->todo = sp->tail = se;
+	return (sp);
 fail:
 	tsdfx_scan_free(se);
-	return (-1);
+	se = NULL;
+	free(sp);
+	sp = NULL;
+	return (NULL);
 }
 
 /*
  * Empty the worklist and file list.
  */
 static void
-tsdfx_scan_cleanup(void)
+tsdfx_scan_cleanup(struct scanpath *sp)
 {
 	struct scan_entry *se;
 
-	while ((se = tsdfx_scan_next()) != NULL)
+	while ((se = tsdfx_scan_next(sp)) != NULL)
 		tsdfx_scan_free(se);
+	free(sp);
+	sp = NULL;
 }
 
 /*
  * Process a directory entry.
  */
 static int
-tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
+tsdfx_process_dirent(struct scanpath *sp, const struct sbuf *parent,
+		     int dd, const struct dirent *de)
 {
 	const char *p;
 	struct sbuf *path;
@@ -221,7 +233,7 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
 	switch (st.st_mode & S_IFMT) {
 	case S_IFDIR:
 		printf("%s/\n", p);
-		if (tsdfx_scan_append(path) == NULL) {
+		if (tsdfx_scan_append(sp, path) == NULL) {
 			/* hard error */
 			ERROR("failed to append %s to scan list", p);
 			ret = -1;
@@ -248,13 +260,13 @@ tsdfx_process_dirent(const struct sbuf *parent, int dd, const struct dirent *de)
  * Process a single worklist entry (directory).
  */
 static int
-tsdfx_scan_process_directory(const struct sbuf *path)
+tsdfx_scan_process_directory(struct scanpath *sp, const struct sbuf *path)
 {
 	DIR *dir;
 	struct dirent *de;
-	int dd, ret, serrno;
+	int dd, processed, serrno;
 
-	ret = 0;
+	processed = 0;
 	if ((dd = open(sbuf_data(path), O_RDONLY)) < 0) {
 		if (errno == ENOENT) {
 			VERBOSE("%s disappeared", sbuf_data(path));
@@ -270,7 +282,7 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 		ERROR("%s: %s", sbuf_data(path), strerror(errno));
 		return (-1);
 	}
-	while (ret == 0 && (de = readdir(dir)) != NULL) {
+	while (processed != -1 && (de = readdir(dir)) != NULL) {
 		if (strcmp(de->d_name, ".") == 0 ||
 		    strcmp(de->d_name, "..") == 0)
 			continue;
@@ -290,13 +302,15 @@ tsdfx_scan_process_directory(const struct sbuf *path)
 			free(encpath);
 			continue;
 		}
-		if (tsdfx_process_dirent(path, dd, de) != 0)
-			ret = -1;
+		if (tsdfx_process_dirent(sp, path, dd, de) != 0)
+			processed = -1;
+		else
+			processed++;
 	}
 	serrno = errno;
 	closedir(dir);
 	errno = serrno;
-	return (ret);
+	return (processed);
 }
 
 /*
@@ -311,21 +325,36 @@ int
 tsdfx_scanner(const char *path)
 {
 	struct scan_entry *se;
-	int serrno;
+	struct scanpath *sp;
+	int processed, subprocessed, serrno;
+	struct timespec timer_end, timer_start;
 
-	if (tsdfx_scan_init(path) != 0)
+	processed = 0;
+	if ((sp = tsdfx_scan_init(path)) == NULL)
 		return (-1);
-	while ((se = tsdfx_scan_next()) != NULL) {
-		if (tsdfx_scan_process_directory(se->path) != 0) {
+
+#define ELAPSED(start, end) ((double)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/(double)1e9))
+	clock_gettime(CLOCK_MONOTONIC, &timer_start);
+
+	while ((se = tsdfx_scan_next(sp)) != NULL) {
+		subprocessed = tsdfx_scan_process_directory(sp, se->path);
+		if (subprocessed == -1) {
 			serrno = errno;
 			tsdfx_scan_free(se);
-			tsdfx_scan_cleanup();
+			tsdfx_scan_cleanup(sp);
 			errno = serrno;
+			clock_gettime(CLOCK_MONOTONIC, &timer_end);
+			VERBOSE("FAILED scanning directory '%s', measured time: %.3lf s", se->path, ELAPSED(timer_start, timer_end));
 			return (-1);
 		}
+		processed += subprocessed;
 	}
-	ASSERT(scan_todo == NULL && scan_tail == NULL);
-	tsdfx_scan_cleanup();
+	clock_gettime(CLOCK_MONOTONIC, &timer_end);
+	ASSERT(sp->todo == NULL && sp->tail == NULL);
+	VERBOSE("found %li dir entries, measured time: %.3lf s",
+	       processed, path, ELAPSED(timer_start, timer_end));
+	tsdfx_scan_cleanup(sp);
+	sp = NULL;
 	return (0);
 }
 
@@ -369,7 +398,7 @@ main(int argc, char *argv[])
 	tsd_log_userlog(userlog);
 
 	if (getuid() == 0 || geteuid() == 0)
-		WARNING("running as root");
+		WARNING("running as root for %s", argv[0]);
 
 	if (tsdfx_scanner(argv[0]) != 0)
 		exit(1);

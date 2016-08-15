@@ -13,6 +13,8 @@ echo "badfile, should be ignored" > "${srcdir}/$(printf "\002")"
 echo test1 > "${srcdir}/test1"
 echo 'test(2)' > "${srcdir}/test (2).txt"
 echo test2 > "${srcdir}/test2"
+mkdir "${srcdir}/d"
+echo test3 > "${srcdir}/d/test3"
 
 dd bs=1k count=${randomsize} \
     if=/dev/urandom \
@@ -20,9 +22,13 @@ dd bs=1k count=${randomsize} \
 
 md5start=$(cd ${srcdir}; md5sum ${randomsize}krandom)
 
+# First a run to copy toplevel files/directories
 run_daemon -1
 
-for good in test1 test2 ; do
+# Next a run to copy next level files
+run_daemon -1
+
+for good in test1 test2 d/test3 ; do
 	if [ ! -e "${dstdir}/${good}" ] ; then
 		fail_test "missing: ${dstdir}/${good}"
 	elif ! cmp -s "${srcdir}/${good}" "${dstdir}/${good}" ; then

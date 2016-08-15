@@ -109,7 +109,7 @@ signal_handler(int sig)
 		killed = sig;
 }
 
-/* open a file and populate the state structure */
+/* open a file or directory and populate the state structure */
 static struct copyfile *
 copyfile_open(const char *fn, int mode, int perm)
 {
@@ -164,11 +164,18 @@ copyfile_open(const char *fn, int mode, int perm)
 		/* otherwise, create it */
 		if (isdir) {
 			if (mkdir(cf->name, perm) != 0) {
-				ERROR("%s: mkdir(): %s", cf->name, strerror(errno));
+				ERROR("%s: mkdir(..., %04o): %s", cf->name, perm, strerror(errno));
 				goto fail;
 			}
-			NOTICE("created directory %s", cf->name);
-			if ((cf->fd = open(fn, cf->mode)) < 0)
+			NOTICE("created directory %s (perm %04o)", cf->name, perm);
+			/*
+			 * open() on Linux reject directories with
+			 * O_CREAT, even if the directory already
+			 * exist.
+			 */
+			mode = mode & ~O_CREAT;
+
+			if ((cf->fd = open(fn, mode)) < 0)
 				goto fail;
 		} else {
 			if ((cf->fd = open(cf->name, mode, perm)) < 0) {
@@ -373,7 +380,7 @@ static int
 copyfile_finish(struct copyfile *cf)
 {
 	struct timeval times[2];
-	int mode;
+	mode_t mode;
 
 	gettimeofday(&cf->tvf, NULL);
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
@@ -384,7 +391,7 @@ copyfile_finish(struct copyfile *cf)
 		}
 		mode = (cf->st.st_mode & 07777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
-		if (fchmod(cf->fd, mode) != 0) {
+		if (mode != cf->st.st_mode && fchmod(cf->fd, mode) != 0) {
 			ERROR("%s: fchmod(%04o): %s", cf->name, mode, strerror(errno));
 			return (-1);
 		}
@@ -494,10 +501,12 @@ tsdfx_copier(const char *srcfn, const char *dstfn, size_t maxsize)
 	/* what's my umask? */
 	umask(mumask = umask(0));
 
-	/* open source and destination files */
+	/* open source and destination files / directories */
 	src = dst = NULL;
-	if ((src = copyfile_open(srcfn, O_RDONLY, 0)) == NULL ||
-	    (dst = copyfile_open(dstfn, O_RDWR|O_CREAT, 0600)) == NULL)
+	if ((src = copyfile_open(srcfn, O_RDONLY, 0)) == NULL)
+		goto fail;
+	if ((dst = copyfile_open(dstfn, O_RDWR|O_CREAT,
+				 copyfile_isdir(src) ? 0700 : 0600)) == NULL)
 		goto fail;
 
 	/* check that they are both the same type */

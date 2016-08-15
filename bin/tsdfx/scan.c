@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
+#include <pwd.h>
 #include <regex.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -92,6 +93,10 @@ struct tsdfx_scan_task_data {
 
 	/* error messages */
 	struct tsdfx_scan_task_databuf stderr;
+
+	/* counters */
+	int processed;
+	struct timespec timer_start;
 };
 
 /*
@@ -211,6 +216,7 @@ struct tsd_task *
 tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 {
 	char name[NAME_MAX];
+	struct passwd *pw;
 	struct tsdfx_scan_task_data *std = NULL;
 	struct tsd_task *t = NULL;
 	struct stat st;
@@ -255,8 +261,24 @@ tsdfx_scan_new(struct tsdfx_map *map, const char *path)
 		goto fail;
 	//t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE;
 	t->flags = TASK_STDIN_NULL | TASK_STDOUT_PIPE | TASK_STDERR_PIPE;
-	if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
-		goto fail;
+
+	/* Run with user group membership combined with file gid */
+	if ((pw = getpwuid(st.st_uid)) != NULL) {
+		VERBOSE("setuser(\"%s\") for %s", pw->pw_name, path);
+		if (tsd_task_setuser(t, pw->pw_name) != 0)
+			goto fail;
+		if (tsd_task_setegid(t, st.st_gid) != 0) {
+			WARNING("%s: owner %lu (%s) is not in group %lu", path,
+			    (unsigned long)st.st_uid, pw->pw_name,
+			    (unsigned long)st.st_gid);
+		}
+	} else {
+		VERBOSE("getpwuid(%lu) failed; setcred(%lu, %lu) for %s",
+		    (unsigned long)st.st_uid, (unsigned long)st.st_uid,
+		    (unsigned long)st.st_gid, path);
+		if (tsd_task_setcred(t, st.st_uid, &st.st_gid, 1) != 0)
+			goto fail;
+	}
 	if (tsdfx_scan_add(t) != 0)
 		goto fail;
 	return (t);
@@ -298,7 +320,7 @@ tsdfx_scan_child(void *ud)
 	/* change into the target directory, chroot if possible */
 	// XXX chroot code removed, move this into tsd_task_start()
 	if (chdir(std->path) != 0) {
-		ERROR("%s: %s", std->path, strerror(errno));
+		ERROR("chdir(%s): %s", std->path, strerror(errno));
 		_exit(1);
 	}
 
@@ -332,6 +354,10 @@ static int
 tsdfx_scan_start(struct tsd_task *t)
 {
 	struct tsdfx_scan_task_data *std = t->ud;
+
+	/* set counters */
+	std->processed = 0;
+	clock_gettime(CLOCK_MONOTONIC, &std->timer_start);
 
 	VERBOSE("%s", std->path);
 	if (t->state != TASK_RUNNING && tsd_task_start(t) != 0)
@@ -402,6 +428,10 @@ tsdfx_scan_reset(struct tsd_task *t)
 	std->stdin.buflen = 0;
 	std->stderr.buf[0] = '\0';
 	std->stderr.buflen = 0;
+
+	/* clear counters */
+	std->processed = 0;
+	clock_gettime(CLOCK_MONOTONIC, &std->timer_start);
 
 	/* check that it's still there */
 	if (stat(std->path, &st) != 0) {
@@ -500,6 +530,7 @@ tsdfx_scan_slurp(struct tsd_task *t)
 			continue;
 		}
 		VERBOSE("[%s]", p);
+		std->processed++;
 		tsdfx_map_process(std->map, p);
 	}
 
@@ -531,7 +562,6 @@ tsdfx_scan_slurp_stderr(struct tsd_task *t)
 	ssize_t rlen;
 	char *buf, *end, *p, *q;
 
-	WARNING("Reading from stderr");
 	/* read as much as we can in the space we have left */
 	len = 0;
 	do {
@@ -561,7 +591,6 @@ tsdfx_scan_slurp_stderr(struct tsd_task *t)
 			break;
 		*q++ = '\0';
 		tsdfx_map_log(std->map, p);
-		ERROR("%s", p);
 	}
 
 	/*
@@ -682,6 +711,7 @@ tsdfx_scan_sched(void)
 {
 	struct tsdfx_scan_task_data *std;
 	struct tsd_task *t, *tn;
+	struct timespec timer_end;
 	time_t now;
 
 	time(&now);
@@ -705,6 +735,14 @@ tsdfx_scan_sched(void)
 			break;
 		case TASK_FINISHED:
 			/* completed successfully */
+
+			/* report scan duration */
+#define ELAPSED(start, end) ((double)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/(double)1e9))
+			clock_gettime(CLOCK_MONOTONIC, &timer_end);
+			VERBOSE("in %s found %li dir entries, measured time: %.3lf s",
+			       std->path, std->processed,
+			       ELAPSED(std->timer_start, timer_end));
+
 			tsdfx_scan_reset(t);
 			break;
 		case TASK_DEAD:

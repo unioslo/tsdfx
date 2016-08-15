@@ -1,5 +1,5 @@
 AC_PREREQ([2.64])
-AC_INIT([TSD File eXchange], [1.20160413], [tsdfx-bugs@usit.uio.no],
+AC_INIT([TSD File eXchange], [1.20160629], [tsdfx-bugs@usit.uio.no],
     [tsdfx], [https://www.github.com/unioslo/tsdfx])
 AC_CONFIG_SRCDIR([bin/tsdfx/tsdfx.c])
 AC_CONFIG_MACRO_DIR([m4])
@@ -37,6 +37,9 @@ AC_CHECK_FUNCS([vasprintf])
 AC_CHECK_HEADERS([bsd/stdlib.h bsd/unistd.h])
 AC_SEARCH_LIBS([setproctitle], [bsd])
 AC_CHECK_FUNCS([setproctitle_init setproctitle])
+
+AC_SEARCH_LIBS([clock_gettime], [rt])
+AC_CHECK_FUNCS([clock_gettime])
 
 # hole detection
 AC_CHECK_DECLS([SEEK_HOLE])
