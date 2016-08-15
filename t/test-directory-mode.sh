@@ -5,16 +5,43 @@
 setup_test
 
 mkdir "${srcdir}/subdir"
-chmod 0750 "${srcdir}/subdir"
-mkdir "${dstdir}/subdir"
-chmod 0640 "${dstdir}/subdir"
 
+#
+# Test that the initial copy task creates the directory with the
+# correct mode
+#
+want=0770
+chmod "$want" "${srcdir}/subdir"
 run_daemon -1
+if [ ! -d "${dstdir}/subdir" ] ; then
+	fail_test "failed to copy ${srcdir}/subdir"
+fi
+mode=$(mode "${dstdir}/subdir")
+if [ "$mode" != "$want" ] ; then
+	fail_test "${srcdir}/subdir mode not copied to ${dstdir}/subdir"
+fi
 
-mode=$(stat --printf %a "${dstdir}/subdir" || stat -f%p "${dstdir}/subdir")
-mode=$((mode % 1000))
-if [ "$mode" != 750 ] ; then
-	fail_test "incorrect mode on ${dstdir}/subdir: 0$mode"
+#
+# Test that a mode change on the source directory is detected and
+# propagated to the target directory, even if it already exists
+#
+want=0750
+chmod "$want" "${srcdir}/subdir"
+run_daemon -1
+mode=$(mode "${dstdir}/subdir")
+if [ "$mode" != "$want" ] ; then
+	fail_test "${srcdir}/subdir mode not propagated to ${dstdir}/subdir"
+fi
+
+#
+# Test that a mode change on the target directory is detected and
+# corrected
+#
+chmod 0640 "${dstdir}/subdir"
+run_daemon -1
+mode=$(mode "${dstdir}/subdir")
+if [ "$mode" != "$want" ] ; then
+	fail_test "${dstdir}/subdir mode not corrected"
 fi
 
 cleanup_test
