@@ -9,6 +9,12 @@ x() {
 	"$@"
 }
 
+mode() {
+	local mode
+	mode=$(stat --printf %a "$1" || stat -f%p "$1") 2>/dev/null
+	echo 0$((mode % 1000))
+}
+
 notice() {
 	echo "NOTICE $@" >&2
 }
