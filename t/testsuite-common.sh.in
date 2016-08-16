@@ -9,12 +9,19 @@ x() {
 	"$@"
 }
 
+mode() {
+	local mode
+	mode=$(stat -c%a "$1" || stat -f%p "$1") 2>/dev/null
+	echo 0$((mode % 1000))
+}
+
 notice() {
 	echo "NOTICE $@" >&2
 }
 
 setup_test() {
 	set -e
+	umask 022
 
 	source="@abs_top_srcdir@"
 
@@ -53,10 +60,7 @@ set_blocksize() {
 		fi
 		dd if=/dev/zero of="${bsfile}" bs=1048576 count=1
 	fi
-	blocksize=$(
-		stat -f%k "${bsfile}"  2>/dev/null ||
-		stat -c%o "${bsfile}" 2>/dev/null
-	)
+	blocksize=$(stat -c%o "${bsfile}" || stat -f%k "${bsfile}") 2>/dev/null
 	if [ "${bsfile}" != "$1" ] ; then
 		rm "${bsfile}"
 	fi
