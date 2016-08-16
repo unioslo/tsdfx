@@ -183,7 +183,7 @@ tsdfx_process_dirent(struct scanpath *sp, const struct sbuf *parent,
 			size_t olen = percent_enclen(len);
 			char *encpath = calloc(1, olen);
 			if (0 == percent_encode(de->d_name, len, encpath, &olen)) {
-				USERERROR("invalid character in file '%s/%s' [inode %lu]\n",
+				USERERROR("invalid character in file '%s/%s' [inode %lu]",
 				       sbuf_data(parent), encpath,
 				       (unsigned long)de->d_ino);
 			} else {
@@ -292,7 +292,7 @@ tsdfx_scan_process_directory(struct scanpath *sp, const struct sbuf *path)
 			size_t olen = percent_enclen(len);
 			char *encpath = calloc(1, olen);
 			if (0 == percent_encode(de->d_name, len, encpath, &olen)) {
-				USERERROR("ignoring dot file '%s/%s' [inode %lu]\n",
+				USERERROR("ignoring dot file '%s/%s' [inode %lu]",
 				    sbuf_data(path), encpath,
 				       (unsigned long)de->d_ino);
 			} else {
