@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -116,6 +117,7 @@ static struct copyfile *
 copyfile_open(const char *fn, int mode, int perm)
 {
 	struct copyfile *cf;
+	struct passwd *pw;
 	size_t len;
 	int isdir;
 	size_t plen;
@@ -192,7 +194,15 @@ copyfile_open(const char *fn, int mode, int perm)
 				ERROR("%s: open(): %s", cf->pname, strerror(errno));
 				goto fail;
 			}
-			NOTICE("created file %s", cf->pname);
+			/*
+			 * Copier run as the source file owner, so we
+			 * log the file owner based on getuid().
+			 */
+			pw = getpwuid(getuid());
+			NOTICE("created file %s (owner uid=%lu username=%s)",
+			       cf->pname,
+			       (unsigned long)getuid(),
+			       (pw ? pw->pw_name : "[unknown]"));
 		}
 	}
 	if (fstat(cf->fd, &cf->st) != 0)
