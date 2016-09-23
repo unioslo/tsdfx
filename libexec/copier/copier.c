@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -55,6 +56,7 @@
 
 #include <tsd/assert.h>
 #include <tsd/log.h>
+#include <tsd/percent.h>
 #include <tsd/sha1.h>
 #include <tsd/strutil.h>
 
@@ -73,6 +75,7 @@ static mode_t mumask;
 
 struct copyfile {
 	char		 name[PATH_MAX];
+	char		*pname;
 	int		 fd;
 	int		 mode;
 	struct stat	 st;
@@ -114,8 +117,10 @@ static struct copyfile *
 copyfile_open(const char *fn, int mode, int perm)
 {
 	struct copyfile *cf;
+	struct passwd *pw;
 	size_t len;
 	int isdir;
+	size_t plen;
 
 	/* allocate state structure */
 	if ((cf = calloc(1, sizeof *cf + BLOCKSIZE)) == NULL)
@@ -130,6 +135,13 @@ copyfile_open(const char *fn, int mode, int perm)
 	}
 	if ((isdir = (cf->name[len - 1] == '/')))
 		cf->name[len - 1] = '\0';
+
+	/* Prepare log friendly version of the name */
+	plen = percent_enclen(strlen(cf->name));
+	cf->pname = malloc(plen);
+	if (cf->pname == NULL)
+		goto fail;
+	percent_encode(cf->name, strlen(cf->name), cf->pname, &plen);
 
 	/* sanitize permissions and mode */
 	perm &= 0777;
@@ -164,10 +176,10 @@ copyfile_open(const char *fn, int mode, int perm)
 		/* otherwise, create it */
 		if (isdir) {
 			if (mkdir(cf->name, perm) != 0) {
-				ERROR("%s: mkdir(..., %04o): %s", cf->name, perm, strerror(errno));
+				ERROR("%s: mkdir(..., %04o): %s", cf->pname, perm, strerror(errno));
 				goto fail;
 			}
-			NOTICE("created directory %s (perm %04o)", cf->name, perm);
+			NOTICE("created directory %s (perm %04o)", cf->pname, perm);
 			/*
 			 * open() on Linux reject directories with
 			 * O_CREAT, even if the directory already
@@ -179,10 +191,18 @@ copyfile_open(const char *fn, int mode, int perm)
 				goto fail;
 		} else {
 			if ((cf->fd = open(cf->name, mode, perm)) < 0) {
-				ERROR("%s: open(): %s", cf->name, strerror(errno));
+				ERROR("%s: open(): %s", cf->pname, strerror(errno));
 				goto fail;
 			}
-			NOTICE("created file %s", cf->name);
+			/*
+			 * Copier run as the source file owner, so we
+			 * log the file owner based on getuid().
+			 */
+			pw = getpwuid(getuid());
+			NOTICE("created file %s (owner uid=%lu username=%s)",
+			       cf->pname,
+			       (unsigned long)getuid(),
+			       (pw ? pw->pw_name : "[unknown]"));
 		}
 	}
 	if (fstat(cf->fd, &cf->st) != 0)
@@ -213,26 +233,26 @@ copyfile_refresh(struct copyfile *cf)
 	struct stat st;
 
 	if (lstat(cf->name, &st) != 0) {
-		ERROR("%s: %s", cf->name, strerror(errno));
+		ERROR("%s: %s", cf->pname, strerror(errno));
 		return (-1);
 	}
 	if (st.st_dev != cf->st.st_dev ||
 	    st.st_ino != cf->st.st_ino) {
-		ERROR("%s has moved", cf->name);
+		ERROR("%s has moved", cf->pname);
 		errno = ESTALE;
 		return (-1);
 	}
 	if (st.st_uid != cf->st.st_uid || st.st_gid != cf->st.st_gid)
-		WARNING("%s: owner changed from %lu:%lu to %lu:%lu", cf->name,
+		WARNING("%s: owner changed from %lu:%lu to %lu:%lu", cf->pname,
 		    (unsigned long)cf->st.st_uid, (unsigned long)cf->st.st_gid,
 		    (unsigned long)st.st_uid, (unsigned long)st.st_gid);
 	if (st.st_mode != cf->st.st_mode)
-		WARNING("%s: mode has changed from %04o to %04o", cf->name,
+		WARNING("%s: mode has changed from %04o to %04o", cf->pname,
 		    (int)cf->st.st_mode, (int)st.st_mode);
 	if (st.st_mtime < cf->st.st_mtime)
-		WARNING("%s: mtime went backwards", cf->name);
+		WARNING("%s: mtime went backwards", cf->pname);
 	if (st.st_size < cf->st.st_size)
-		WARNING("%s: truncated", cf->name);
+		WARNING("%s: truncated", cf->pname);
 	cf->st = st;
 	return (0);
 }
@@ -271,7 +291,7 @@ copyfile_read(struct copyfile *cf)
 		return (0);
 
 	if ((rlen = read(cf->fd, cf->buf, cf->bufsize)) < 0) {
-		ERROR("%s: read(): %s", cf->name, strerror(errno));
+		ERROR("%s: read(): %s", cf->pname, strerror(errno));
 		return (-1);
 	}
 	cf->buflen = (size_t)rlen;
@@ -355,11 +375,11 @@ copyfile_write(struct copyfile *cf)
 	if (copyfile_isdir(cf))
 		return (-1);
 	if (lseek(cf->fd, cf->offset, SEEK_SET) != cf->offset) {
-		ERROR("%s: lseek(): %s", cf->name, strerror(errno));
+		ERROR("%s: lseek(): %s", cf->pname, strerror(errno));
 		return (-1);
 	}
 	if ((wlen = write(cf->fd, cf->buf, cf->buflen)) != (ssize_t)cf->buflen) {
-		ERROR("%s: write(): %s", cf->name, strerror(errno));
+		ERROR("%s: write(): %s", cf->pname, strerror(errno));
 		return (-1);
 	}
 	return (0);
@@ -386,13 +406,13 @@ copyfile_finish(struct copyfile *cf)
 	timersub(&cf->tvf, &cf->tvo, &cf->tve);
 	if (cf->mode & O_RDWR) {
 		if (!copyfile_isdir(cf) && ftruncate(cf->fd, cf->offset) != 0) {
-			ERROR("%s: ftruncate(): %s", cf->name, strerror(errno));
+			ERROR("%s: ftruncate(): %s", cf->pname, strerror(errno));
 			return (-1);
 		}
 		mode = (cf->st.st_mode & 07777) | 0600; // force u+rw
 		mode &= ~mumask; // apply umask
 		if (mode != cf->st.st_mode && fchmod(cf->fd, mode) != 0) {
-			ERROR("%s: fchmod(%04o): %s", cf->name, mode, strerror(errno));
+			ERROR("%s: fchmod(%04o): %s", cf->pname, mode, strerror(errno));
 			return (-1);
 		}
 		times[0].tv_sec = cf->st.st_atim.tv_sec;
@@ -400,7 +420,7 @@ copyfile_finish(struct copyfile *cf)
 		times[1].tv_sec = cf->st.st_mtim.tv_sec;
 		times[1].tv_usec = cf->st.st_mtim.tv_nsec / 1000;
 		if (futimes(cf->fd, times) != 0) {
-			ERROR("%s: futimes(): %s", cf->name, strerror(errno));
+			ERROR("%s: futimes(): %s", cf->pname, strerror(errno));
 			return (-1);
 		}
 	}
@@ -414,6 +434,10 @@ static void
 copyfile_close(struct copyfile *cf)
 {
 
+	if (cf->pname) {
+		free(cf->pname);
+		cf->pname = NULL;
+	}
 	if (cf->fd >= 0)
 		close(cf->fd);
 	memset(cf, 0, sizeof *cf + cf->bufsize);
