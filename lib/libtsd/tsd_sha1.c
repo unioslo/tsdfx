@@ -80,12 +80,13 @@ sha1_init(sha1_ctx *ctx)
 static void
 sha1_compute(sha1_ctx *ctx, const uint8_t *block)
 {
+	int i;
 	uint32_t w[80], a, b, c, d, e;
 
 	memcpy(w, block, 64);
-	for (int i = 0; i < 16; ++i)
+	for (i = 0; i < 16; ++i)
 		w[i] = be32toh(w[i]);
-	for (int i = 16; i < 80; ++i) {
+	for (i = 16; i < 80; ++i) {
 		w[i] = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16];
 		w[i] = rol32(w[i], 1);
 	}
@@ -216,6 +217,7 @@ sha1_update(sha1_ctx *ctx, const void *buf, size_t len)
 void
 sha1_final(sha1_ctx *ctx, uint8_t *digest)
 {
+	int i;
 	uint32_t hi, lo;
 
 	ctx->block[ctx->blocklen++] = 0x80;
@@ -230,7 +232,7 @@ sha1_final(sha1_ctx *ctx, uint8_t *digest)
 	memcpy(ctx->block + 60, &lo, 4);
 	ctx->blocklen = 64;
 	sha1_compute(ctx, ctx->block);
-	for (int i = 0; i < 5; ++i)
+	for (i = 0; i < 5; ++i)
 		ctx->h[i] = htobe32(ctx->h[i]);
 	memcpy(digest, ctx->h, 20);
 	memset(ctx, 0, sizeof *ctx);
