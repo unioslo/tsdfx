@@ -32,6 +32,7 @@
 #endif
 
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include <errno.h>
 #include <limits.h>

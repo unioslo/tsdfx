@@ -31,11 +31,7 @@
 # include "config.h"
 #endif
 
-#include <sys/types.h>
-#include <sys/wait.h>
-
 #include <errno.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

@@ -31,7 +31,6 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <string.h>
 
 #include <tsd/ctype.h>
 #include <tsd/percent.h>

@@ -35,6 +35,7 @@
 #ifndef HAVE_STRLCAT
 
 #include <stddef.h>
+#include <string.h>
 
 #include <tsd/strutil.h>
 

@@ -30,6 +30,8 @@
 #ifndef TSD_HASH_H_INCLUDED
 #define TSD_HASH_H_INCLUDED
 
+#include <stdint.h>
+
 uint8_t tsd_hash(const void *, size_t);
 uint8_t tsd_strhash(const char *);
 
