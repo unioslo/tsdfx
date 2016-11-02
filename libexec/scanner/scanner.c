@@ -51,7 +51,7 @@
 #include <tsd/strutil.h>
 #include <tsd/percent.h>
 
-static long maxfiles = 10000;
+static long maxfiles = 40000;
 
 struct scan_entry {
 	struct sbuf *path;
