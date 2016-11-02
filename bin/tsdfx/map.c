@@ -31,6 +31,7 @@
 # include "config.h"
 #endif
 
+#include <sys/types.h>
 #include <sys/stat.h>
 
 #include <errno.h>
@@ -38,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #if HAVE_BSD_STDLIB_H
 #include <bsd/stdlib.h>

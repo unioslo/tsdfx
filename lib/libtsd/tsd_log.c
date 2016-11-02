@@ -31,6 +31,8 @@
 # include "config.h"
 #endif
 
+#include <sys/types.h>
+
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
