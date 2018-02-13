@@ -60,7 +60,7 @@ usage(void)
 {
 
 	fprintf(stderr, "usage: tsdfx [-1nv] "
-	    "[-l logname] [-C copier] [-p pidfile] [-S scanner] -m mapfile\n");
+	    "[-l logname] [-C copier] [-M maxfiles] [-p pidfile] [-S scanner] -m mapfile\n");
 	exit(1);
 }
 
@@ -75,6 +75,7 @@ showversion(void)
 int
 main(int argc, char *argv[])
 {
+	char *end;
 	const char *logfile, *mapfile, *pidfilename;
 	struct tsd_pidfh *pidfh;
 	int killed, nodaemon, opt;
@@ -91,7 +92,7 @@ main(int argc, char *argv[])
 	pidfilename = PIDFILENAME;
 	pidfh = NULL;
 	nodaemon = 0;
-	while ((opt = getopt(argc, argv, "1C:d:fhi:l:m:np:S:vV")) != -1)
+	while ((opt = getopt(argc, argv, "1C:d:fhi:l:m:M:np:S:vV")) != -1)
 		switch (opt) {
 		case '1':
 			++tsdfx_oneshot;
@@ -117,6 +118,13 @@ main(int argc, char *argv[])
 			break;
 		case 'm':
 			mapfile = optarg;
+			break;
+		case 'M':
+			tsdfx_maxfiles = strtoul(optarg, &end, 10);
+			if (end == optarg || *end != '\0' || tsdfx_maxfiles == 0) {
+				fprintf(stderr, "unable to parse scan limit");
+				usage();
+			}
 			break;
 		case 'n':
 			++tsdfx_dryrun;

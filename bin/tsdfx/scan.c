@@ -110,6 +110,9 @@ unsigned int tsdfx_scan_max_tasks = 8;
 /* full path to scanner binary */
 const char *tsdfx_scanner;
 
+/* maximum files to scan, or 0 to use the default in the scanner */
+unsigned long tsdfx_maxfiles = 0;
+
 static void tsdfx_scan_name(char *, const char *);
 static int tsdfx_scan_slurp(struct tsd_task *);
 static void tsdfx_scan_child(void *);
@@ -309,7 +312,8 @@ static void
 tsdfx_scan_child(void *ud)
 {
 	struct tsdfx_scan_task_data *std = ud;
-	const char *argv[8];
+	const char *argv[10];
+	char maxfiles_str[sizeof(long) * 4];/* ~log10(tsdfx_maxfiles) */
 	int argc;
 
 	/* check credentials */
@@ -329,6 +333,12 @@ tsdfx_scan_child(void *ud)
 	argv[argc++] = tsdfx_scanner;
 	if (tsdfx_verbose)
 		argv[argc++] = "-v";
+	if (tsdfx_maxfiles > 0) {
+		argv[argc++] = "-M";
+		snprintf(maxfiles_str, sizeof maxfiles_str,
+		    "%ld", tsdfx_maxfiles);
+		argv[argc++] = maxfiles_str;
+	}
 	argv[argc++] = "-l";
 	argv[argc++] = tsd_log_getname();
 	/*
