@@ -36,6 +36,7 @@
 .Nm
 .Op Fl 1fhnv
 .Op Fl C Ar copier
+.Op Fl d Ar purgetime
 .Op Fl S Ar scanner
 .Op Fl l Ar logspec
 .Op Fl M Ar maxfiles
@@ -62,9 +63,12 @@ Path to the copier program.
 See
 .Xr tsdfx-copier 8 .
 .It Fl d Ar sec
-Set purge time limit.  Remove source files when they are copied to the
-destination and their mtime is more than sec in the past.  When sec is
-0, do not purge.  The default is 30 days.
+Set purge time limit in seconds.  Remove source files when they are
+copied to the destination and their mtime is more than
+.Va sec
+in the past.  When
+.Va sec
+is 0, do not purge.  The default is 14 days.
 .It Fl f
 Foreground mode: do not daemonize.
 .It Fl i Ar sec
