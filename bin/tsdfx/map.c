@@ -332,8 +332,8 @@ tsdfx_map_reload(const char *fn)
 		    tsdfx_map[i]->srcpath, tsdfx_map[i]->dstpath);
 	return (0);
 fail:
-	for (j = 0; i < newmap_len; ++j)
-		map_delete(newmap[j]);
+	for (i = 0; i < newmap_len; ++i)
+		map_delete(newmap[i]);
 	free(newmap);
 	return (-1);
 }
