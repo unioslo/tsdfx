@@ -60,7 +60,7 @@ usage(void)
 {
 
 	fprintf(stderr, "usage: tsdfx [-1nv] "
-	    "[-l logname] [-C copier] [-M maxfiles] [-p pidfile] [-S scanner] -m mapfile\n");
+	    "[-l logname] [-C copier] [-d purgetime ] [-M maxfiles] [-p pidfile] [-S scanner] -m mapfile\n");
 	exit(1);
 }
 

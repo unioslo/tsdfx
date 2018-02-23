@@ -64,7 +64,7 @@ int tsdfx_dryrun = 0;
  * When source files are unmodified for this long, and already present
  * in destination directory, purge it from the source directory.
  */
-time_t tsdfx_copy_purgeperiod = 30 * 24 * 60 * 60; /* default is 30 days */
+time_t tsdfx_copy_purgeperiod = 14 * 24 * 60 * 60; /* default is 14 days */
 
 /*
  * Private data for a copy task
