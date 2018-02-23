@@ -326,11 +326,12 @@ tsd_task_start(struct tsd_task *t)
 			if (ret != 0)
 				_exit(1);
 		}
-		if (getgid() != getegid())
-			(void)setgid(getgid());
-		if (getuid() != geteuid())
-			(void)setuid(getuid());
-		(*t->func)(t->ud);
+		if (getgid() != getegid() && setgid(getgid()) != 0)
+			ERROR("failed to reset process group");
+		else if (getuid() != geteuid() && setuid(getuid()) != 0)
+			ERROR("failed to reset process user");
+		else
+			(*t->func)(t->ud);
 		_exit(1);
 	}
 
