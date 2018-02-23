@@ -50,4 +50,6 @@ extern unsigned int tsdfx_reset_interval;
 
 extern time_t tsdfx_copy_purgeperiod;
 
+extern unsigned long tsdfx_maxfiles;
+
 #endif

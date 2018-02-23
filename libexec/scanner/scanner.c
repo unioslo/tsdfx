@@ -51,7 +51,7 @@
 #include <tsd/strutil.h>
 #include <tsd/percent.h>
 
-static long maxfiles = 40000;
+static long maxfiles = 80000;
 
 struct scan_entry {
 	struct sbuf *path;
@@ -372,7 +372,7 @@ static void
 usage(void)
 {
 
-	fprintf(stderr, "usage: tsdfx-scanner [-v] [-l logname] [-m maxfiles] path\n");
+	fprintf(stderr, "usage: tsdfx-scanner [-v] [-l logname] [-M maxfiles] path\n");
 	exit(1);
 }
 
@@ -384,7 +384,7 @@ main(int argc, char *argv[])
 	int opt;
 
 	logfile = userlog = NULL;
-	while ((opt = getopt(argc, argv, "hl:m:v")) != -1)
+	while ((opt = getopt(argc, argv, "hl:M:v")) != -1)
 		switch (opt) {
 		case 'l':
 			if (strncmp(optarg, ":user=", 6) == 0)
@@ -392,7 +392,7 @@ main(int argc, char *argv[])
 			else
 				logfile = optarg;
 			break;
-		case 'm':
+		case 'M':
 			maxfiles = strtol(optarg, &end, 10);
 			if (end == optarg || *end != '\0' || maxfiles < 0) {
 				fprintf(stderr, "unable to parse scan limit");

@@ -38,6 +38,7 @@
 .Op Fl C Ar copier
 .Op Fl S Ar scanner
 .Op Fl l Ar logspec
+.Op Fl M Ar maxfiles
 .Op Fl p Ar pidfile
 .Fl m Ar mapfile
 .Pp
@@ -96,6 +97,10 @@ Path to the PID file.
 The default is
 .Pa /var/run/tsdfx.pid .
 This option is ignored in one-shot and foreground mode.
+.It Fl M Ar maxfiles
+Stop scanning after this amount of files are seen.
+The limit is passed on to
+.Xr tsdfx-scanner 8 .
 .It Fl S Ar scanner
 Path to the scanner program.
 See

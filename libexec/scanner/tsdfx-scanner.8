@@ -36,7 +36,7 @@
 .Nm
 .Op Fl v
 .Op Fl l logspec
-.Op Fl m maxfiles
+.Op Fl M maxfiles
 .Ar Pa path
 .Sh DESCRIPTION
 The
@@ -58,10 +58,10 @@ to log to standard error,
 to log to
 .Xr syslog 8 ,
 or a file name.
-.It Fl m Ar maxfiles
+.It Fl M Ar maxfiles
 Set the maximum number of files to scan before exiting.  This ensure no scanner
 spend too much time scanning even if some user flood the input directory with files.
-Set to 0 (zero) to scan without any limit.  The default limit is 10.000 files.
+Set to 0 (zero) to scan without any limit.  The default limit is 80.000 files.
 .It Fl v
 Verbose mode: log a large amount of information about the inner
 workings of

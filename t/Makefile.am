@@ -8,6 +8,7 @@ TESTS = \
 	test-pidfile.sh \
 	test-purgesource.sh \
 	test-scanner-boundary.sh \
+	test-scan-maxfiles.sh \
 	test-simplecopy.sh \
 	test-timing.sh
 
